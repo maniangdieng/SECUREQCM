@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Administration</h1><p>{% if is_superadmin %}Super-administrateur{% else %}Administrateur{% endif %} · vue d'ensemble de la plateforme</p></div>
+  <div class="actions">
+    <a class="btn ghost" href="{% url 'admin_users' %}">Gérer les comptes</a>
+    {% if user.is_staff %}<a class="btn ghost" href="/admin/">Administration technique</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-stats">
+  <div class="stat"><div class="value">{{ stats.users }}</div><div class="label">Comptes</div></div>
+  <div class="stat"><div class="value">{{ stats.teachers }}</div><div class="label">Enseignants</div></div>
+  <div class="stat"><div class="value">{{ stats.students }}</div><div class="label">Étudiants</div></div>
+  <div class="stat"><div class="value">{{ stats.classrooms }}</div><div class="label">Classes actives</div></div>
+  <div class="stat"><div class="value">{{ stats.exams }}</div><div class="label">Examens actifs</div></div>
+  <div class="stat"><div class="value">{{ stats.attempts }}</div><div class="label">Copies</div></div>
+</div>
+
+<section class="section card">
+  <div class="card-title"><h2>Classes</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Classe</th><th>Propriétaire</th><th>Code</th><th>Étudiants</th><th>Examens</th><th>État</th><th></th></tr></thead>
+    <tbody>
+    {% for c in classrooms %}
+    <tr>
+      <td><a href="{% url 'classroom_detail' c.id %}"><strong>{{ c.name }}</strong></a><div class="muted small">{{ c.section }}</div></td>
+      <td>{{ c.owner.get_full_name|default:c.owner.username }}</td>
+      <td class="mono">{{ c.join_code }}</td>
+      <td>{{ c.student_count }}</td><td>{{ c.exam_count }}</td>
+      <td>{% if c.is_archived %}<span class="badge archived">Archivée</span>{% else %}<span class="badge published">Active</span>{% endif %}</td>
+      <td><form method="post" action="{% url 'archive_classroom' c.id %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'admin_dashboard' %}"><button class="btn ghost sm">{% if c.is_archived %}Restaurer{% else %}Archiver{% endif %}</button></form></td>
+    </tr>
+    {% empty %}<tr><td colspan="7" class="muted center">Aucune classe.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section card">
+  <div class="card-title"><h2>Cycle de vie des examens</h2></div>
+  <p class="muted small">Sans tentative : suppression normale. Avec tentatives : archivage obligatoire (historique conservé). Suppression définitive d'un examen archivé : export CSV + saisie de « SUPPRIMER ».</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Examen</th><th>Classe</th><th>Enseignant</th><th>Copies</th><th>État</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for e in managed_exams %}
+    <tr>
+      <td><a href="{% url 'teacher_exam' e.id %}"><strong>{{ e.title }}</strong></a></td>
+      <td class="small">{{ e.classroom.name|default:"—" }}</td>
+      <td class="small">{{ e.teacher.get_full_name|default:e.teacher.username }}</td>
+      <td>{{ e.attempts_count }}</td>
+      <td><span class="badge {% if e.is_archived %}archived{% elif e.published %}published{% else %}draft{% endif %}">{{ e.state_label }}</span></td>
+      <td><div class="actions">
+      {% if e.attempts_count %}
+        <a class="btn ghost sm" href="{% url 'export_exam_results' e.id %}">Export CSV</a>
+        {% if not e.is_archived %}
+          <form method="post" action="{% url 'admin_archive_exam' e.id %}">{% csrf_token %}<button class="btn sm" type="submit">Archiver</button></form>
+        {% else %}
+          <button class="btn danger-ghost sm" type="button" data-dialog="dlg-del-{{ e.id }}">Supprimer définitivement</button>
+          <dialog id="dlg-del-{{ e.id }}">
+            <form method="post" action="{% url 'admin_delete_exam' e.id %}">
+              {% csrf_token %}
+              <div class="dialog-body">
+                <h2>Suppression définitive</h2>
+                <p>« {{ e.title }} » : l'examen, les <strong>{{ e.attempts_count }}</strong> copie(s) et toutes les réponses seront effacés. Cette opération est irréversible.</p>
+                <label class="check"><input type="checkbox" name="export_confirmed" value="yes" required> J'ai téléchargé l'export CSV des résultats.</label>
+                <label>Saisissez SUPPRIMER pour confirmer<input type="text" name="confirmation" required pattern="SUPPRIMER" autocomplete="off"></label>
+              </div>
+              <div class="dialog-foot"><button class="btn ghost" type="button" data-close>Annuler</button><button class="btn danger" type="submit">Supprimer définitivement</button></div>
+            </form>
+          </dialog>
+        {% endif %}
+      {% else %}
+        <form method="post" action="{% url 'admin_normal_delete_exam' e.id %}" data-confirm="Supprimer cet examen sans tentative ?">{% csrf_token %}<button class="btn danger-ghost sm" type="submit">Supprimer</button></form>
+      {% endif %}
+      </div></td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="muted center">Aucun examen.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endblock %}

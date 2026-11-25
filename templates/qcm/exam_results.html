@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Résultats – {{ exam.title }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+  {% if exam.classroom %}<a href="{% url 'classroom_detail' exam.classroom.id %}">{{ exam.classroom.name }}</a> › {% endif %}<a href="{% url 'teacher_exam' exam.id %}">{{ exam.title }}</a> › Résultats
+</div>
+<div class="page-head">
+  <div><h1>Résultats</h1><p>{{ exam.title }}</p></div>
+  <a class="btn" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV (Excel)</a>
+</div>
+
+<div class="grid grid-stats" style="margin-bottom:20px">
+  <div class="stat"><div class="value">{{ enrollment_count }}</div><div class="label">Étudiants affectés</div></div>
+  <div class="stat"><div class="value">{{ rows|length }}</div><div class="label">Copies</div></div>
+  <div class="stat"><div class="value">{{ completed_count }}</div><div class="label">Terminées</div></div>
+  <div class="stat"><div class="value">{{ in_progress_count }}</div><div class="label">En cours</div></div>
+  <div class="stat"><div class="value">{% if average is not None %}{{ average|floatformat:2 }}{% else %}—{% endif %}</div><div class="label">Moyenne /20</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Étudiant</th><th>Matricule</th><th>Début</th><th>Statut</th><th>Violations</th><th>Score</th><th>%</th><th>Note /20</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.attempt.student.get_full_name|default:r.attempt.student.username }}</strong><div class="muted small">{{ r.attempt.student.username }}</div></td>
+      <td class="mono small">{{ r.attempt.student.profile.student_number|default:"—" }}</td>
+      <td class="small">{{ r.attempt.started_at|date:"d/m/Y H:i" }}</td>
+      <td><span class="badge {% if r.attempt.status == 'TERMINATED_SECURITY' %}danger{% elif r.attempt.status == 'IN_PROGRESS' %}info{% else %}ok{% endif %}">{{ r.attempt.get_status_display }}</span></td>
+      <td>{{ r.attempt.violation_count }}</td>
+      <td>{{ r.score|floatformat:2 }} / {{ r.max_score|floatformat:2 }}</td>
+      <td>{{ r.percent }} %</td>
+      <td><strong>{{ r.final_grade|floatformat:2 }}</strong></td>
+      <td><a class="btn ghost sm" href="{% url 'attempt_result_detail' r.attempt.id %}">Copie</a></td>
+    </tr>
+    {% empty %}<tr><td colspan="9" class="muted center">Aucune tentative pour cet examen.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

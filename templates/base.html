@@ -1,0 +1,50 @@
+{% load static %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Secure QCM{% endblock %} · Secure QCM</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f6b5c'/><text x='16' y='21' font-size='13' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'>QCM</text></svg>">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% block appbar %}
+<header class="appbar">
+  <div class="appbar-inner">
+    <a class="brand" href="{% url 'home' %}"><span class="brand-mark">SQ</span> Secure QCM</a>
+    {% if user.is_authenticated %}
+    {% with path=request.path %}
+    <nav class="appnav" aria-label="Navigation principale">
+      {% if app_role == "ADMIN" %}
+        <a href="{% url 'admin_dashboard' %}" class="{% if path == '/dashboard/admin/' %}active{% endif %}">Administration</a>
+        <a href="{% url 'admin_users' %}" class="{% if '/dashboard/admin/users' in path %}active{% endif %}">Comptes</a>
+        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Classes</a>
+      {% elif app_role == "TEACHER" %}
+        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
+        <a href="{% url 'import_qcm' %}" class="{% if '/import-qcm' in path %}active{% endif %}">Importer un QCM</a>
+      {% else %}
+        <a href="{% url 'student_dashboard' %}" class="{% if path == '/dashboard/student/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
+      {% endif %}
+    </nav>
+    {% endwith %}
+    <div class="usermenu">
+      <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Admin{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
+      <span class="avatar" title="{{ user.get_full_name|default:user.username }}">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
+      <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn ghost sm" type="submit">Déconnexion</button></form>
+    </div>
+    {% endif %}
+  </div>
+</header>
+{% endblock %}
+<main class="{% block main_class %}page{% endblock %}">
+  {% if messages %}
+  <div class="messages" role="status">
+    {% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}
+  </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<script src="{% static 'js/app.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

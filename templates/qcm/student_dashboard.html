@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Mon espace{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Bonjour {{ user.first_name|default:user.username }}</h1>
+    <p>{% if user.profile.study_level %}{{ user.profile.get_study_level_display }} · {% endif %}Matricule {{ user.profile.student_number|default:"—" }}</p>
+  </div>
+  <button class="btn" type="button" data-dialog="dlg-join">+ Rejoindre une classe</button>
+</div>
+
+<section>
+  <h2>Examens à faire</h2>
+  {% for e in todo_exams %}{% include "qcm/_student_exam.html" %}
+  {% empty %}<div class="empty"><p class="mb-0">Aucun examen en attente.</p></div>{% endfor %}
+</section>
+
+<section class="section">
+  <h2>Mes classes</h2>
+  {% if classrooms %}
+  <div class="grid grid-cards">{% for c in classrooms %}{% include "qcm/_class_card.html" %}{% endfor %}</div>
+  {% else %}
+  <div class="empty">
+    <h3>Vous n'êtes inscrit dans aucune classe</h3>
+    <p>Demandez le code de la classe à votre enseignant.</p>
+    <button class="btn" type="button" data-dialog="dlg-join">Rejoindre une classe</button>
+  </div>
+  {% endif %}
+</section>
+
+{% if done_exams %}
+<section class="section">
+  <h2>Examens terminés</h2>
+  {% for e in done_exams %}{% include "qcm/_student_exam.html" %}{% endfor %}
+</section>
+{% endif %}
+
+<dialog id="dlg-join">
+  <form method="post" action="{% url 'join_classroom' %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Rejoindre une classe</h2>
+      <p class="muted">Saisissez le code de la classe communiqué par votre enseignant (7 caractères).</p>
+      <label>Code de la classe<input name="join_code" required maxlength="12" autocomplete="off" style="font-family:var(--mono);font-size:1.3rem;letter-spacing:.15em;text-transform:uppercase"></label>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Rejoindre</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

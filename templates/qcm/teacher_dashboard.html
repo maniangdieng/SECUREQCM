@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Mes classes{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Mes classes</h1>
+    <p>Créez une classe, partagez son code avec vos étudiants, puis publiez vos examens dans la classe.</p>
+  </div>
+  <div class="actions">
+    <a class="btn ghost" href="{% url 'import_qcm' %}">Importer un QCM</a>
+    <button class="btn" type="button" data-dialog="dlg-create-class">+ Créer une classe</button>
+  </div>
+</div>
+
+{% if active_classrooms %}
+<div class="grid grid-cards">
+  {% for c in active_classrooms %}{% include "qcm/_class_card.html" with show_code=True %}{% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <h3>Aucune classe pour l'instant</h3>
+  <p>Une classe regroupe vos étudiants et vos examens, comme dans Google Classroom.</p>
+  <button class="btn" type="button" data-dialog="dlg-create-class">Créer ma première classe</button>
+</div>
+{% endif %}
+
+{% if archived_classrooms %}
+<details class="section panel">
+  <summary>Classes archivées ({{ archived_classrooms|length }})</summary>
+  <div class="grid grid-cards">{% for c in archived_classrooms %}{% include "qcm/_class_card.html" %}{% endfor %}</div>
+</details>
+{% endif %}
+
+<section class="section">
+  <div class="spread" style="margin-bottom:12px">
+    <h2 class="mb-0">Examens hors classe <span class="muted small">(ciblage par niveau ou liste CSV)</span></h2>
+  </div>
+  <div class="card">
+    {% if exams %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Examen</th><th>Public</th><th>Questions</th><th>Durée</th><th>État</th><th></th></tr></thead>
+      <tbody>
+      {% for e in exams %}
+      <tr>
+        <td><a href="{% url 'teacher_exam' e.id %}"><strong>{{ e.title }}</strong></a></td>
+        <td class="small">{{ e.get_audience_mode_display }}{% if e.target_level %} · {{ e.get_target_level_display }}{% endif %}</td>
+        <td>{{ e.question_count }}</td>
+        <td>{{ e.duration_minutes }} min</td>
+        <td><span class="badge {% if e.published %}published{% else %}draft{% endif %}">{{ e.state_label }}</span></td>
+        <td><div class="actions">
+          <a class="btn ghost sm" href="{% url 'teacher_exam' e.id %}">Gérer</a>
+          {% if e.published %}<a class="btn sm" href="{% url 'exam_results' e.id %}">Résultats</a>{% endif %}
+        </div></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted mb-0">Aucun examen hors classe. Il est recommandé de créer vos examens depuis une classe.</p>{% endif %}
+
+    <details class="panel" style="margin-top:16px">
+      <summary>Créer un examen par niveau (sans classe)</summary>
+      <form method="post" action="{% url 'create_exam' %}">
+        {% csrf_token %}
+        <label>Titre<input name="title" required placeholder="Ex. Devoir n°1 de Machine Learning"></label>
+        <label>Description<textarea name="description" rows="2"></textarea></label>
+        <div class="row">
+          <label class="grow">Niveau d'études
+            <select name="target_level">
+              <option value="">—</option>
+              {% for value, label in levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="grow">Mode d'affectation
+            <select name="audience_mode" required>
+              <option value="LEVEL" selected>Tous les étudiants du niveau</option>
+              <option value="LIST">Étudiants sélectionnés (import CSV)</option>
+            </select>
+          </label>
+          <label style="width:140px">Durée (min)<input type="number" name="duration" value="60" min="1" max="180" required></label>
+        </div>
+        <button class="btn" type="submit">Créer l'examen</button>
+      </form>
+    </details>
+  </div>
+</section>
+
+<dialog id="dlg-create-class">
+  <form method="post" action="{% url 'create_classroom' %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Créer une classe</h2>
+      <label>Nom de la classe <span class="muted">(obligatoire)</span><input name="name" required maxlength="120" placeholder="Ex. Machine Learning"></label>
+      <div class="row">
+        <label class="grow">Section<input name="section" maxlength="120" placeholder="Ex. Ingénieur 1 – Groupe A"></label>
+        <label class="grow">Matière<input name="subject" maxlength="120"></label>
+      </div>
+      <div class="row">
+        <label class="grow">Niveau
+          <select name="study_level"><option value="">—</option>{% for value, label in levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+        <label class="grow">Couleur
+          <select name="color">{% for value, label in colors %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Créer</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

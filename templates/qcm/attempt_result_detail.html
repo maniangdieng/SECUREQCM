@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Copie{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'exam_results' attempt.exam.id %}">Résultats – {{ attempt.exam.title }}</a> › Copie</div>
+<div class="page-head">
+  <div>
+    <h1>{{ attempt.student.get_full_name|default:attempt.student.username }}</h1>
+    <p>{{ attempt.get_status_display }} · {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points · <strong>{{ final_grade|floatformat:2 }} / 20</strong></p>
+  </div>
+</div>
+
+{% if events %}
+<div class="card flat" style="margin-bottom:18px">
+  <h3>Journal de sécurité</h3>
+  <ul class="list">{% for ev in events %}<li class="list-item"><span>{% if ev.event_type == "TAB_SWITCH" %}Changement d'onglet{% elif ev.event_type == "FULLSCREEN_EXIT" %}Sortie du plein écran{% else %}{{ ev.event_type }}{% endif %}</span><span class="meta">{{ ev.created_at|date:"d/m/Y H:i:s" }}</span></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% for d in details %}
+<div class="card">
+  <div class="spread"><h3 class="mb-0">{{ forloop.counter }}. {{ d.question.text }}</h3>
+    {% if not d.response %}<span class="badge">Sans réponse</span>{% elif d.is_right %}<span class="badge ok">Juste</span>{% else %}<span class="badge danger">Incorrect / partiel</span>{% endif %}</div>
+  <ul class="answer-list">
+    {% for o in d.options %}
+    <li class="{% if o.id in d.correct %}correct{% elif o.id in d.selected %}wrong{% endif %}">
+      {% if o.id in d.selected %}<strong>☑</strong>{% else %}☐{% endif %} {{ o.text }}
+      {% if o.id in d.correct %}<span class="opt-correct small"> — bonne réponse</span>{% elif o.id in d.selected %}<span class="opt-wrong small"> — choisie</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if d.response.auto_submitted %}<p class="help">Enregistrée automatiquement (temps écoulé).</p>{% endif %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Créer un compte étudiant{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block content %}
+<div class="card wide">
+  <h1>Créer un compte étudiant</h1>
+  <p class="muted">Utilisez les informations de votre carte étudiante. Après la création du compte, rejoignez vos classes avec le code donné par votre enseignant.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="row">
+      <label class="grow">Prénom<input name="first_name" required value="{{ form_data.first_name }}" autocomplete="given-name"></label>
+      <label class="grow">Nom<input name="last_name" required value="{{ form_data.last_name }}" autocomplete="family-name"></label>
+    </div>
+    <div class="row">
+      <label class="grow">Matricule<input name="student_number" required value="{{ form_data.student_number }}"></label>
+      <label class="grow">Niveau d'études
+        <select name="study_level" required>
+          <option value="">Sélectionner…</option>
+          {% for value, label in levels %}<option value="{{ value }}" {% if form_data.study_level == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>E-mail <span class="muted">(facultatif)</span><input type="email" name="email" value="{{ form_data.email }}" autocomplete="email"></label>
+    <label>Identifiant de connexion<input name="username" required value="{{ form_data.username }}" autocomplete="username"></label>
+    <div class="row">
+      <label class="grow">Mot de passe<input type="password" name="password" required autocomplete="new-password"><span class="help">8 caractères minimum, pas trop courant.</span></label>
+      <label class="grow">Confirmation<input type="password" name="password2" required autocomplete="new-password"></label>
+    </div>
+    <button class="btn lg block" type="submit">Créer mon compte</button>
+  </form>
+  <hr>
+  <p class="center muted mb-0">Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></p>
+</div>
+{% endblock %}

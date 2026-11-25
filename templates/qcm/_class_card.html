@@ -1,0 +1,17 @@
+<article class="class-card">
+  <div class="banner banner-{{ c.color }}">
+    <span class="banner-deco"></span>
+    <h3><a href="{% url 'classroom_detail' c.id %}">{{ c.name }}</a></h3>
+    <div class="sub">{{ c.section|default:"" }}{% if c.section and c.subject %} · {% endif %}{{ c.subject|default:"" }}</div>
+    <div class="owner">{{ c.owner.get_full_name|default:c.owner.username }}</div>
+  </div>
+  <div class="body">
+    {% if c.student_count is not None %}{{ c.student_count }} étudiant{{ c.student_count|pluralize }} · {{ c.exam_count }} examen{{ c.exam_count|pluralize }}{% endif %}
+    {% if c.study_level %}<span class="badge" style="margin-left:6px">{{ c.get_study_level_display }}</span>{% endif %}
+    {% if c.is_archived %}<span class="badge archived">Archivée</span>{% endif %}
+  </div>
+  <div class="foot">
+    <a class="btn ghost sm" href="{% url 'classroom_detail' c.id %}">Ouvrir</a>
+    {% if show_code %}<span class="mono small muted" title="Code de la classe">{{ c.join_code }}</span>{% endif %}
+  </div>
+</article>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Prévisualisation de l'import{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'import_qcm' %}">Importer un QCM</a> › Prévisualisation</div>
+<div class="page-head">
+  <div>
+    <h1>{{ payload.title }}</h1>
+    <p>{{ payload.questions|length }} question(s) détectée(s) · {{ payload.duration }} minutes{% if payload.classroom_name %} · Classe : {{ payload.classroom_name }}{% endif %}</p>
+  </div>
+</div>
+<div class="alert">Retirez les questions inutiles, puis cochez <strong>toutes</strong> les bonnes réponses de chaque question conservée.</div>
+<br>
+<form method="post">
+  {% csrf_token %}
+  {% for q in payload.questions %}
+  <div class="card">
+    <div class="spread" style="align-items:flex-start">
+      <h3 style="flex:1">{{ forloop.counter }}. {{ q.text }}</h3>
+      <label class="check" style="color:var(--danger);white-space:nowrap"><input type="checkbox" name="remove_question" value="{{ forloop.counter0 }}"> Retirer</label>
+    </div>
+    {% for o in q.options %}
+    <label class="option"><input type="checkbox" name="correct_{{ forloop.parentloop.counter0 }}" value="{{ o.letter }}" {% if o.letter in q.correct %}checked{% endif %}> <strong>{{ o.letter }}.</strong> {{ o.text }}</label>
+    {% endfor %}
+    {% if not q.correct %}<p class="alert warning small mb-0">Aucune bonne réponse détectée : cochez-la si vous conservez cette question.</p>{% endif %}
+  </div>
+  {% endfor %}
+  <div class="spread" style="margin-top:18px">
+    <a href="{% url 'import_qcm' %}">← Recommencer l'import</a>
+    <button class="btn lg" type="submit">Créer l'examen en brouillon</button>
+  </div>
+</form>
+{% endblock %}

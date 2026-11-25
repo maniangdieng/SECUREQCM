@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ classroom.name }}{% endblock %}
+{% block content %}
+<div class="class-hero banner-{{ classroom.color }}">
+  <span class="banner-deco"></span>
+  <h1>{{ classroom.name }}</h1>
+  <div class="sub">{{ classroom.section }}{% if classroom.section and classroom.subject %} · {% endif %}{{ classroom.subject }}</div>
+</div>
+
+<nav class="tabs">
+  <a href="?tab=travaux" class="{% if tab != 'personnes' %}active{% endif %}">Examens</a>
+  <a href="?tab=personnes" class="{% if tab == 'personnes' %}active{% endif %}">Personnes</a>
+</nav>
+
+{% if tab == "personnes" %}
+<div class="card">
+  <h2>Enseignants</h2>
+  <ul class="list">
+    {% for m in teachers %}<li class="list-item"><div class="person"><span class="avatar">{{ m.user.first_name|first|upper|default:m.user.username|first|upper }}{{ m.user.last_name|first|upper }}</span><strong>{{ m.user.get_full_name|default:m.user.username }}</strong></div></li>{% endfor %}
+  </ul>
+  <p class="muted">{{ student_count }} étudiant{{ student_count|pluralize }} dans la classe.</p>
+  <hr>
+  <form method="post" action="{% url 'leave_classroom' classroom.id %}" data-confirm="Quitter cette classe ? Vous pourrez la rejoindre à nouveau avec son code.">
+    {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Quitter la classe</button>
+  </form>
+</div>
+{% else %}
+{% if classroom.description %}<div class="card flat" style="margin-bottom:16px">{{ classroom.description|linebreaksbr }}</div>{% endif %}
+{% for e in exams %}{% include "qcm/_student_exam.html" %}
+{% empty %}<div class="empty"><h3>Aucun examen publié</h3><p class="mb-0">Les examens apparaîtront ici dès que votre enseignant les publiera.</p></div>{% endfor %}
+{% endif %}
+{% endblock %}

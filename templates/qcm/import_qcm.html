@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Importer un QCM{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Importer un QCM</h1><p>PDF, Word ou Excel. L'examen est créé en brouillon : il reste invisible pour les étudiants avant publication.</p></div>
+</div>
+
+<div class="layout-side" style="grid-template-columns:1fr 340px">
+  <div class="card">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label>Titre de l'examen<input name="title" placeholder="Ex. QCM de Machine Learning"></label>
+      <label>Description<textarea name="description" rows="2"></textarea></label>
+      <div class="row">
+        <label class="grow">Classe
+          <select name="classroom_id">
+            <option value="">— Aucune (examen par niveau / liste) —</option>
+            {% for c in classrooms %}<option value="{{ c.id }}" {% if selected_classroom == c.id|stringformat:'s' %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="grow">Destinataires
+          <select name="audience_mode" required>
+            <option value="CLASS" {% if selected_classroom %}selected{% endif %}>Toute la classe</option>
+            <option value="LEVEL" {% if not selected_classroom %}selected{% endif %}>Tous les étudiants d'un niveau</option>
+            <option value="LIST">Étudiants sélectionnés (CSV)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="grow">Niveau d'études
+          <select name="target_level"><option value="">— (niveau de la classe) —</option>{% for value, label in levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+        <label style="width:160px">Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180"></label>
+      </div>
+      <label>Fichier du sujet<input type="file" name="subject_file" accept=".pdf,.docx,.xlsx,.xlsm" required><span class="help">PDF (texte sélectionnable), DOCX, XLSX — 15 Mo max.</span></label>
+
+      <fieldset>
+        <legend>Bonnes réponses</legend>
+        <label class="check"><input type="radio" name="answer_mode" value="integrated" checked> Incluses dans le fichier du sujet</label>
+        <label class="check"><input type="radio" name="answer_mode" value="separate"> Dans un corrigé séparé</label>
+        <label class="check"><input type="radio" name="answer_mode" value="manual"> Je les cocherai à l'étape suivante</label>
+        <label>Corrigé séparé <span class="muted">(uniquement avec l'option correspondante)</span><input type="file" name="answer_file" accept=".pdf,.docx,.xlsx,.xlsm"></label>
+      </fieldset>
+      <button class="btn lg" type="submit">Analyser et prévisualiser</button>
+    </form>
+  </div>
+
+  <aside class="card flat">
+    <h3>Format attendu</h3>
+    <p class="small"><strong>PDF / Word :</strong> numéro de question, énoncé, puis propositions sur des lignes distinctes : <code>A)</code>, <code>B)</code>, <code>C)</code>, <code>D)</code>. Ligne facultative <code>Réponse : B</code>.</p>
+    <p class="small"><strong>Excel :</strong> une question par ligne, colonnes <code>Question</code>, <code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>, <code>Réponse</code> (ex. <code>A</code> ou <code>A,C</code>).</p>
+    <p class="small muted">Modèle : <code>qcm_data/modele_import_qcm.xlsx</code>. Les PDF scannés (images) ne sont pas lus : OCR non inclus.</p>
+  </aside>
+</div>
+{% endblock %}
