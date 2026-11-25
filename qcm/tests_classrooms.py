@@ -254,3 +254,34 @@ class ExamFlowTests(TestCase):
         self.client.post(f"/student/exams/{exam.id}/start/")
         attempt = Attempt.objects.get()
         self.assertEqual(self.client.post(f"/attempt/{attempt.id}/answer/", {"option": ["abc"]}).status_code, 400)
+
+
+class SecurityHardeningTests(TestCase):
+    def test_csv_export_neutralises_formulas(self):
+        from .views.results import csv_safe
+        self.assertEqual(csv_safe("=HYPERLINK(\"http://x\")"), "'=HYPERLINK(\"http://x\")")
+        self.assertEqual(csv_safe("+33"), "'+33")
+        self.assertEqual(csv_safe("Diop"), "Diop")
+
+    def test_zip_bomb_is_rejected(self):
+        import io
+        import zipfile
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from . import importers
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("xl/huge.xml", b"0" * (importers.MAX_UNCOMPRESSED_BYTES + 1))
+        upload = SimpleUploadedFile("bombe.xlsx", buffer.getvalue())
+        self.assertLess(len(buffer.getvalue()), 1024 * 1024)  # petit fichier compressé...
+        with self.assertRaises(ValueError):                    # ...mais refusé avant décompression
+            importers.parse_uploaded_questions(upload)
+
+    def test_real_template_still_imports(self):
+        from pathlib import Path
+        from django.conf import settings
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .importers import parse_uploaded_questions
+        data = (Path(settings.BASE_DIR) / "qcm_data" / "modele_import_qcm.xlsx").read_bytes()
+        questions = parse_uploaded_questions(SimpleUploadedFile("modele.xlsx", data))
+        self.assertEqual(len(questions), 2)
+        self.assertEqual(questions[1]["correct"], ["A", "B", "D"])

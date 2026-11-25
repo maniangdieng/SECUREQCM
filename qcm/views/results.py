@@ -12,6 +12,17 @@ from ..permissions import can_manage_exam
 from ..services import exam_max_score, grade_summary
 
 
+def csv_safe(value):
+    """
+    Neutralise l'injection de formules (CSV injection) : un nom saisi par un étudiant
+    comme « =HYPERLINK(...) » serait exécuté par Excel à l'ouverture de l'export.
+    """
+    text = "" if value is None else str(value)
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
+
 @login_required
 def exam_results(request, exam_id):
     exam = get_object_or_404(Exam.objects.select_related("classroom"), pk=exam_id)
@@ -73,10 +84,10 @@ def export_exam_results(request, exam_id):
         g = grade_summary(attempt, max_score)
         profile = getattr(attempt.student, "profile", None)
         writer.writerow([
-            attempt.student.username,
-            profile.student_number if profile else "",
-            attempt.student.last_name,
-            attempt.student.first_name,
+            csv_safe(attempt.student.username),
+            csv_safe(profile.student_number if profile else ""),
+            csv_safe(attempt.student.last_name),
+            csv_safe(attempt.student.first_name),
             attempt.get_status_display(),
             "Provisoire" if attempt.status == Attempt.IN_PROGRESS else "Définitif",
             "Violation des règles" if attempt.status == Attempt.TERMINATED_SECURITY else attempt.get_status_display(),

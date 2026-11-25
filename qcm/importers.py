@@ -3,6 +3,48 @@ from pathlib import Path
 
 LETTERS = "ABCDEFGH"
 
+# Garde-fous contre les fichiers piégés (bombes de décompression, documents géants).
+# Les fichiers DOCX/XLSX sont des archives ZIP : 15 Mo compressés peuvent en faire des Go.
+MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+MAX_ZIP_ENTRIES = 2000
+MAX_PDF_PAGES = 300
+MAX_XLSX_ROWS = 2000
+MAX_XLSX_COLS = 20
+MAX_QUESTIONS = 500
+MAX_TEXT_LENGTH = 5000
+
+
+def _check_zip_archive(data, label):
+    """Refuse une archive Office dont la taille décompressée déclarée est excessive."""
+    import io
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            infos = archive.infolist()
+    except zipfile.BadZipFile:
+        raise ValueError(f"Fichier {label} invalide ou corrompu.")
+    if len(infos) > MAX_ZIP_ENTRIES or sum(i.file_size for i in infos) > MAX_UNCOMPRESSED_BYTES:
+        raise ValueError(f"Fichier {label} trop volumineux une fois décompressé.")
+
+
+def _read_xlsx_rows(data, label):
+    """Lit au plus MAX_XLSX_ROWS lignes et MAX_XLSX_COLS colonnes, sans tout charger en mémoire."""
+    import io
+    from itertools import islice
+    from openpyxl import load_workbook
+    _check_zip_archive(data, label)
+    try:
+        wb = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+        try:
+            rows = list(islice(wb.active.iter_rows(values_only=True, max_col=MAX_XLSX_COLS), MAX_XLSX_ROWS + 1))
+        finally:
+            wb.close()
+    except Exception as exc:
+        raise ValueError(f"Lecture du fichier {label} impossible : {exc}")
+    if len(rows) > MAX_XLSX_ROWS:
+        raise ValueError(f"Le fichier {label} dépasse {MAX_XLSX_ROWS} lignes.")
+    return rows
+
 
 def _normalise_answer(value):
     if value is None:
@@ -81,10 +123,13 @@ def extract_text(uploaded):
             from pypdf import PdfReader
             import io
             reader = PdfReader(io.BytesIO(data))
+            if len(reader.pages) > MAX_PDF_PAGES:
+                raise ValueError(f"Le PDF dépasse {MAX_PDF_PAGES} pages.")
             return "\n".join(page.extract_text() or "" for page in reader.pages)
         except Exception as exc:
             raise ValueError(f"Lecture PDF impossible : {exc}")
     if name.endswith(".docx"):
+        _check_zip_archive(data, "Word")
         try:
             from docx import Document
             import io
@@ -102,14 +147,7 @@ def extract_text(uploaded):
 
 
 def parse_xlsx(uploaded):
-    try:
-        from openpyxl import load_workbook
-        import io
-        wb = load_workbook(io.BytesIO(uploaded.read()), data_only=True, read_only=True)
-        ws = wb.active
-        rows = list(ws.iter_rows(values_only=True))
-    except Exception as exc:
-        raise ValueError(f"Lecture Excel impossible : {exc}")
+    rows = _read_xlsx_rows(uploaded.read(), "Excel")
     if not rows:
         raise ValueError("Le fichier Excel est vide.")
     header = [str(x or "").strip().lower() for x in rows[0]]
@@ -123,7 +161,8 @@ def parse_xlsx(uploaded):
                     return header.index(n)
             return None
         qi = col("question", "énoncé", "enonce")
-        option_cols = [col(x) for x in LETTERS[:4]]
+        # L'en-tête est passé en minuscules : chercher "a", "b"… et non "A", "B"…
+        option_cols = [col(x.lower()) for x in LETTERS[:4]]
         ai = col("réponse", "reponse", "correcte")
     else:
         qi, option_cols, ai = 0, [1,2,3,4], 5
@@ -148,19 +187,22 @@ def parse_xlsx(uploaded):
 
 def parse_uploaded_questions(uploaded):
     if uploaded.name.lower().endswith((".xlsx", ".xlsm")):
-        return parse_xlsx(uploaded)
-    return parse_text_questions(extract_text(uploaded))
+        questions = parse_xlsx(uploaded)
+    else:
+        questions = parse_text_questions(extract_text(uploaded))
+    # Le résultat est stocké en session pour la prévisualisation : on borne sa taille.
+    if len(questions) > MAX_QUESTIONS:
+        raise ValueError(f"Le sujet contient plus de {MAX_QUESTIONS} questions. Découpez-le en plusieurs examens.")
+    for q in questions:
+        q["text"] = q["text"][:MAX_TEXT_LENGTH]
+        for option in q["options"]:
+            option["text"] = option["text"][:500]
+    return questions
 
 
 
 def parse_answer_key_xlsx(uploaded):
-    try:
-        from openpyxl import load_workbook
-        import io
-        wb = load_workbook(io.BytesIO(uploaded.read()), data_only=True, read_only=True)
-        rows = list(wb.active.iter_rows(values_only=True))
-    except Exception as exc:
-        raise ValueError(f"Lecture du corrigé Excel impossible : {exc}")
+    rows = _read_xlsx_rows(uploaded.read(), "corrigé Excel")
     if not rows:
         raise ValueError("Le corrigé Excel est vide.")
     header = [str(x or "").strip().lower() for x in rows[0]]

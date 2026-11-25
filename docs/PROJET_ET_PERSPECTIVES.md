@@ -95,7 +95,7 @@ docs/                 ce document, la checklist de déploiement, l'historique de
 - **Résultats** : moyenne sur 20, nombre de violations par copie, journal de sécurité dans chaque copie.
 - **Nouveau design** : charte cohérente, cartes de classes, onglets, page d'examen épurée avec chronomètres lisibles, interface adaptée au mobile, sans aucune dépendance externe (fonctionne hors Internet).
 - Code découpé en modules (`views/`, `permissions.py`, `services.py`) pour **travailler à plusieurs sans conflits**.
-- Tests : on passe de 18 à **42**.
+- Tests : on passe de 18 à **45**.
 
 ---
 
