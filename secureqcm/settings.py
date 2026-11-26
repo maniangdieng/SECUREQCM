@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "qcm.apps.QcmConfig",
+    "axes",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -43,6 +44,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Doit rester en dernier (django-axes).
+    "axes.middleware.AxesMiddleware",
 ]
 ROOT_URLCONF = "secureqcm.urls"
 TEMPLATES = [{
@@ -87,6 +90,22 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/accounts/login/"
+
+# Limitation des tentatives de connexion (django-axes). Voir l'issue #6.
+# Le blocage porte sur le couple identifiant + adresse IP : pendant un examen,
+# un étudiant qui se trompe ne bloque ni ses camarades (même salle, parfois même
+# IP derrière un routeur) ni son propre compte depuis un autre poste.
+AUTHENTICATION_BACKENDS = [
+    "qcm.auth_backends.AxesBackend",  # en premier
+    "django.contrib.auth.backends.ModelBackend",
+]
+AXES_ENABLED = os.getenv("AXES_ENABLED", "1") == "1"
+AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
+AXES_COOLOFF_TIME = int(os.getenv("AXES_COOLOFF_MINUTES", "15")) / 60  # en heures
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
+AXES_VERBOSE = False
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 

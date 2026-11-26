@@ -77,7 +77,8 @@ def student_register(request):
             # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
             for exam in Exam.objects.filter(published=True, is_archived=False, audience_mode="LEVEL", target_level=study_level):
                 ExamEnrollment.objects.get_or_create(exam=exam, student=user, defaults={"source": "LEVEL"})
-            login(request, user)
+            # Plusieurs backends sont configurés (django-axes) : préciser lequel a authentifié.
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
             return redirect("student_dashboard")
     return render(request, "registration/register.html", {"levels": Profile.LEVEL_CHOICES, "form_data": form_data})

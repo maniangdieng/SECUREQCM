@@ -41,6 +41,17 @@ python manage.py test qcm
 
 Avant un examen réel : [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md).
 
+## Blocage après échecs de connexion
+
+Après 5 mots de passe erronés (`AXES_FAILURE_LIMIT`), le couple identifiant + adresse IP est bloqué 15 minutes
+(`AXES_COOLOFF_MINUTES`). Les camarades sur le même réseau ne sont pas touchés. Pour débloquer tout de suite un étudiant :
+
+```bash
+python manage.py axes_reset_username <identifiant>     # sous Docker : docker compose exec web python manage.py ...
+```
+
+Les tentatives sont aussi visibles et supprimables dans `/admin/` (section *Axes*).
+
 ## Parcours en bref
 
 | Rôle | Ce qu'il fait |

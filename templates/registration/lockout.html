@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Connexion temporairement bloquée{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="center" style="margin-bottom:18px">
+    <span class="brand-mark" style="width:48px;height:48px;font-size:1.1rem;margin:0 auto 12px;display:grid">SQ</span>
+    <h1>Trop de tentatives</h1>
+  </div>
+  <div class="alert error" role="alert">
+    {{ failure_limit }} tentatives de connexion échouées pour l'identifiant « {{ username }} ».
+    La connexion est bloquée temporairement : réessayez dans quelques minutes.
+  </div>
+  <br>
+  <p class="muted">Pendant un examen, signalez-le au surveillant : un administrateur peut lever le blocage immédiatement.</p>
+  <p class="center mb-0"><a href="{% url 'login' %}">Retour à la connexion</a></p>
+</div>
+{% endblock %}
