@@ -91,7 +91,9 @@ class Exam(models.Model):
     ]
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_exams")
+    # PROTECT : supprimer un enseignant ne doit jamais emporter ses examens (ni les copies
+    # des étudiants, elles-mêmes protégées). L'admin désactive le compte à la place (issue #4).
+    teacher = models.ForeignKey(User, on_delete=models.PROTECT, related_name="created_exams")
     classroom = models.ForeignKey(Classroom, on_delete=models.PROTECT, null=True, blank=True, related_name="exams")
     duration_minutes = models.PositiveIntegerField(default=60)
     published = models.BooleanField(default=False)
