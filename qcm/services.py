@@ -7,7 +7,7 @@ from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Question, Response
@@ -210,3 +210,50 @@ def grade_summary(attempt, grading=None):
         "percent": percent.quantize(Decimal("0.1")),
         "final_grade": final_grade.quantize(Decimal("0.01")),
     }
+
+
+RESULT_HEADER = ["Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score", "Motif de clôture",
+                 "Début", "Fin", "Score obtenu", "Score maximal", "Pourcentage (%)", "Note finale (/20)", "Violations"]
+
+
+def exam_attempts(exam):
+    """Tentatives d'un examen, avec de quoi les noter sans requête supplémentaire par copie."""
+    # Seules les vraies violations comptent (pas les doublons ignorés ni les reprises).
+    violations = Count("security_events",
+                       filter=Q(security_events__event_type__in=["TAB_SWITCH", "FULLSCREEN_EXIT"]))
+    return (Attempt.objects.filter(exam=exam).select_related("exam", "student", "student__profile")
+            .prefetch_related("responses").annotate(violation_count=violations))
+
+
+def graded_attempts(exam, attempts):
+    """Couples (tentative, notes) ; le barème des copies sans barème figé n'est calculé qu'une fois."""
+    fallback = None
+    for attempt in attempts:
+        if not attempt.grading_snapshot and fallback is None:
+            fallback = build_grading(exam)
+        yield attempt, grade_summary(attempt, attempt.grading_snapshot or fallback)
+
+
+def result_rows(exam):
+    """Lignes d'export (colonnes de RESULT_HEADER) : texte, nombres et dates locales, communes à tous les formats."""
+    def local(moment):
+        return timezone.localtime(moment).replace(tzinfo=None) if moment else None
+
+    for attempt, g in graded_attempts(exam, exam_attempts(exam).order_by("student__username", "-started_at")):
+        profile = getattr(attempt.student, "profile", None)
+        yield [
+            attempt.student.username,
+            profile.student_number if profile else "",
+            attempt.student.last_name,
+            attempt.student.first_name,
+            attempt.get_status_display(),
+            "Provisoire" if attempt.status == Attempt.IN_PROGRESS else "Définitif",
+            "Violation des règles" if attempt.status == Attempt.TERMINATED_SECURITY else attempt.get_status_display(),
+            local(attempt.started_at),
+            local(attempt.ended_at),
+            g["score"].quantize(Decimal("0.01")),
+            g["max_score"].quantize(Decimal("0.01")),
+            g["percent"],
+            g["final_grade"],
+            attempt.violation_count,
+        ]
