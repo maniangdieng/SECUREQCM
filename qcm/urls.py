@@ -43,6 +43,7 @@ urlpatterns = [
     path("teacher/exams/<int:exam_id>/results/", views.exam_results, name="exam_results"),
     path("teacher/exams/<int:exam_id>/results/export/", views.export_exam_results, name="export_exam_results"),
     path("teacher/attempts/<int:attempt_id>/results/", views.attempt_result_detail, name="attempt_result_detail"),
+    path("teacher/attempts/<int:attempt_id>/authorize-resume/", views.authorize_resume, name="authorize_resume"),
     path("teacher/import-qcm/", views.import_qcm, name="import_qcm"),
     path("teacher/import-qcm/preview/", views.import_qcm_preview, name="import_qcm_preview"),
 
@@ -52,5 +53,6 @@ urlpatterns = [
     path("student/exams/<int:exam_id>/start/", views.start_exam, name="start_exam"),
     path("attempt/<int:attempt_id>/", views.take_exam, name="take_exam"),
     path("attempt/<int:attempt_id>/answer/", views.submit_answer, name="submit_answer"),
+    path("attempt/<int:attempt_id>/answer.json", views.submit_answer_api, name="submit_answer_api"),
     path("attempt/<int:attempt_id>/event/", views.security_event, name="security_event"),
 ]

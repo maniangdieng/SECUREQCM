@@ -9,10 +9,34 @@
   </div>
 </div>
 
+{% if can_resume %}
+<div class="card" style="margin-bottom:18px;border-color:var(--warning)">
+  <h3>Autoriser une reprise</h3>
+  <p class="small">La tentative a été clôturée pour violation des règles. Si la clôture est contestée et justifiée,
+    vous pouvez la rouvrir : l'étudiant repart à la question où il s'est arrêté, ses réponses sont conservées,
+    il récupère le temps qui lui restait et son compteur de violations repart à zéro.</p>
+  <form method="post" action="{% url 'authorize_resume' attempt.id %}" data-confirm="Rouvrir la tentative de cet étudiant ?">
+    {% csrf_token %}
+    <label>Motif (conservé dans le journal)<textarea name="reason" rows="2" required maxlength="500" placeholder="Ex. coupure de courant constatée dans la salle"></textarea></label>
+    <button class="btn" type="submit">Autoriser la reprise</button>
+  </form>
+</div>
+{% endif %}
+
 {% if events %}
 <div class="card flat" style="margin-bottom:18px">
   <h3>Journal de sécurité</h3>
-  <ul class="list">{% for ev in events %}<li class="list-item"><span>{% if ev.event_type == "TAB_SWITCH" %}Changement d'onglet{% elif ev.event_type == "FULLSCREEN_EXIT" %}Sortie du plein écran{% else %}{{ ev.event_type }}{% endif %}</span><span class="meta">{{ ev.created_at|date:"d/m/Y H:i:s" }}</span></li>{% endfor %}</ul>
+  <ul class="list">{% for ev in events %}
+    <li class="list-item">
+      <span>
+      {% if ev.event_type == "TAB_SWITCH" %}<span class="badge danger">Violation</span> Changement d'onglet
+      {% elif ev.event_type == "FULLSCREEN_EXIT" %}<span class="badge danger">Violation</span> Sortie du plein écran
+      {% elif ev.event_type == "VIOLATION_IGNORED" %}<span class="badge">Ignoré</span> Doublon de la violation précédente (même action)
+      {% elif ev.event_type == "RESUME_AUTHORIZED" %}<span class="badge ok">Reprise autorisée</span> par {{ ev.details.by }} — motif : « {{ ev.details.reason }} »
+      {% else %}{{ ev.event_type }}{% endif %}
+      </span>
+      <span class="meta">{{ ev.created_at|date:"d/m/Y H:i:s" }}</span>
+    </li>{% endfor %}</ul>
 </div>
 {% endif %}
 

@@ -2,13 +2,13 @@ import csv
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 
 from ..models import Exam, Attempt
-from ..permissions import can_manage_exam
+from ..permissions import can_manage_exam, can_authorize_resume
 from ..services import exam_max_score, grade_summary
 
 
@@ -29,7 +29,9 @@ def exam_results(request, exam_id):
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
     attempts = (Attempt.objects.filter(exam=exam).select_related("student", "student__profile")
-                .annotate(violation_count=Count("security_events"))
+                # Seules les vraies violations comptent (pas les doublons ignorés ni les reprises).
+                .annotate(violation_count=Count("security_events",
+                                                filter=Q(security_events__event_type__in=["TAB_SWITCH", "FULLSCREEN_EXIT"])))
                 .order_by("-started_at"))
     max_score = exam_max_score(exam)
     rows = [{"attempt": a, **grade_summary(a, max_score)} for a in attempts]
@@ -61,6 +63,8 @@ def attempt_result_detail(request, attempt_id):
     return render(request, "qcm/attempt_result_detail.html", {
         "attempt": attempt, "details": details, **grade_summary(attempt),
         "events": attempt.security_events.order_by("created_at"),
+        "can_resume": attempt.status == Attempt.TERMINATED_SECURITY and not attempt.exam.is_archived
+                      and can_authorize_resume(request.user, attempt),
     })
 
 
