@@ -8,11 +8,12 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
-from ..permissions import is_teacher_or_admin, can_manage_exam, can_manage_classroom
-from ..services import enroll_audience
+from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
+from ..services import close_expired_attempts, enroll_audience
 from .common import redirect_back
 
 MAX_OPTIONS = 6
@@ -33,10 +34,10 @@ def teacher_dashboard(request):
                   .select_related("owner")
                   .annotate(student_count=Count("memberships", filter=Q(memberships__role="STUDENT"), distinct=True),
                             exam_count=Count("exams", distinct=True)))
-    standalone_exams = (Exam.objects.filter(teacher=request.user, classroom__isnull=True, is_archived=False)
+    standalone_exams = (Exam.objects.filter(teacher=request.user, classroom__isnull=True)
                         .annotate(question_count=Count("questions", distinct=True),
                                   attempt_count=Count("attempts", distinct=True))
-                        .order_by("-created_at"))
+                        .order_by("is_archived", "-created_at"))
     return render(request, "qcm/teacher_dashboard.html", {
         "active_classrooms": [c for c in classrooms if not c.is_archived],
         "archived_classrooms": [c for c in classrooms if c.is_archived],
@@ -52,6 +53,19 @@ def _parse_duration(value):
     except (TypeError, ValueError):
         return None
     return duration if 1 <= duration <= 180 else None
+
+
+ORDERS = {"random": True, "fixed": False}
+
+
+def _parse_exam_settings(data):
+    """Règle de notation et ordre ; un champ absent prend sa valeur par défaut. None si une valeur est inconnue."""
+    rule = data.get("multiple_scoring", Exam.PARTIAL)
+    questions = data.get("question_order", "random")
+    answers = data.get("answer_order", "random")
+    if rule not in dict(Exam.SCORING_CHOICES) or questions not in ORDERS or answers not in ORDERS:
+        return None
+    return {"multiple_scoring": rule, "shuffle_questions": ORDERS[questions], "shuffle_answers": ORDERS[answers]}
 
 
 @login_required
@@ -71,6 +85,7 @@ def create_exam(request):
     audience_mode = request.POST.get("audience_mode", "CLASS" if classroom else "LEVEL").strip()
     duration = _parse_duration(request.POST.get("duration", 60))
     title = request.POST.get("title", "").strip()[:200]
+    settings = _parse_exam_settings(request.POST)
 
     error = None
     if duration is None:
@@ -85,6 +100,8 @@ def create_exam(request):
         error = "Choisissez le niveau d'études ciblé."
     elif level and level not in dict(Profile.LEVEL_CHOICES):
         error = "Niveau d'études invalide."
+    elif settings is None:
+        error = "Réglage de notation ou d'ordre invalide."
     if error:
         messages.error(request, error)
         return redirect(fallback[0], **fallback[1])
@@ -94,7 +111,7 @@ def create_exam(request):
     exam = Exam.objects.create(
         title=title, description=request.POST.get("description", "").strip(),
         teacher=request.user, classroom=classroom, duration_minutes=duration,
-        target_level=level, audience_mode=audience_mode,
+        target_level=level, audience_mode=audience_mode, **settings,
     )
     messages.success(request, "Examen créé en brouillon. Ajoutez maintenant vos questions.")
     return redirect("teacher_exam", exam_id=exam.id)
@@ -118,6 +135,67 @@ def update_exam_duration(request, exam_id):
     exam.save(update_fields=["duration_minutes"])
     messages.success(request, f"Durée de « {exam.title} » mise à jour : {duration} minute(s).")
     return redirect_back(request, "teacher_dashboard")
+
+
+@login_required
+@require_POST
+def update_exam_settings(request, exam_id):
+    """Règle de notation et ordre : modifiables uniquement tant qu'aucune tentative n'existe."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    settings = _parse_exam_settings(request.POST)
+    if Attempt.objects.filter(exam=exam).exists():
+        messages.error(request, "Ces réglages ne peuvent plus être modifiés : au moins une tentative d'étudiant existe déjà.")
+    elif settings is None:
+        messages.error(request, "Réglage de notation ou d'ordre invalide.")
+    else:
+        Exam.objects.filter(pk=exam.pk).update(**settings)
+        messages.success(request, "Réglages de notation et d'ordre enregistrés.")
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+def close_exam(request, exam_id):
+    """Clôture : plus de nouvelle tentative ; celles en cours se terminent dans leur temps."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    if not exam.published or exam.is_archived:
+        messages.error(request, "Seul un examen publié et non archivé peut être clôturé.")
+    elif Exam.objects.filter(pk=exam.pk, closed_at__isnull=True).update(closed_at=timezone.now()):
+        messages.success(request, f"L'examen « {exam.title} » est clôturé.")
+    else:
+        messages.info(request, "Cet examen est déjà clôturé.")
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+def archive_exam(request, exam_id):
+    """Archivage par l'enseignant de l'examen ou l'administration ; l'historique est conservé."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    admin = is_admin(request.user)
+    back = redirect_back(request, "admin_dashboard") if admin else redirect("teacher_exam", exam_id=exam.id)
+    attempts = Attempt.objects.filter(exam=exam)
+    close_expired_attempts(attempts)
+    if not attempts.exists():
+        messages.error(request, "Cet examen ne possède aucune tentative : utilisez la suppression normale.")
+    elif exam.is_archived:
+        messages.info(request, "Cet examen est déjà archivé.")
+    elif not admin and attempts.filter(status=Attempt.IN_PROGRESS).exists():
+        # Archiver retire l'examen aux étudiants : un enseignant ne peut pas couper une épreuve en cours.
+        messages.error(request, "Des tentatives sont en cours : clôturez l'examen, puis archivez-le quand elles sont terminées.")
+    else:
+        exam.is_archived = True
+        exam.archived_at = timezone.now()
+        exam.archived_by = request.user
+        exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
+        messages.success(request, f"L’examen « {exam.title} » a été archivé. Son historique est conservé.")
+    return back
 
 
 @login_required

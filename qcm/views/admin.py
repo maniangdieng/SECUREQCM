@@ -111,26 +111,6 @@ def admin_toggle_active(request, user_id):
 
 @login_required
 @require_POST
-def admin_archive_exam(request, exam_id):
-    if not is_admin(request.user):
-        return HttpResponseForbidden("Action réservée à l'administration.")
-    exam = get_object_or_404(Exam, pk=exam_id)
-    if not Attempt.objects.filter(exam=exam).exists():
-        messages.error(request, "Cet examen ne possède aucune tentative : utilisez la suppression normale.")
-        return redirect("admin_dashboard")
-    if not exam.is_archived:
-        exam.is_archived = True
-        exam.archived_at = timezone.now()
-        exam.archived_by = request.user
-        exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
-        messages.success(request, f"L’examen « {exam.title} » a été archivé. Son historique est conservé.")
-    else:
-        messages.info(request, "Cet examen est déjà archivé.")
-    return redirect("admin_dashboard")
-
-
-@login_required
-@require_POST
 def admin_delete_exam(request, exam_id):
     if not is_admin(request.user):
         return HttpResponseForbidden("Suppression définitive réservée à l'administration.")

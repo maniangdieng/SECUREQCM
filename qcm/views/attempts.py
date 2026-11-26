@@ -19,7 +19,6 @@ Ajouts :
 """
 import random
 from datetime import timedelta
-from decimal import Decimal
 from functools import wraps
 from contextlib import nullcontext
 
@@ -34,8 +33,8 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role, can_authorize_resume
-from ..services import (calculate_score, exam_max_score, locked_attempts, question_time_seconds, advance,
-                        close_attempt, apply_deadlines)
+from ..services import (build_grading, exam_max_score, grade_summary, locked_attempts, question_time_seconds,
+                        advance, close_attempt, apply_deadlines)
 
 SECURITY_EVENTS = {"TAB_SWITCH", "FULLSCREEN_EXIT"}
 MAX_VIOLATIONS = 2
@@ -64,11 +63,9 @@ def counted_violations(attempt):
 
 def finished_score_context(attempt):
     """Score conservé à la clôture, rapporté au maximum de toutes les questions."""
-    score = calculate_score(attempt)
-    max_score = exam_max_score(attempt.exam)
-    percentage = (score / max_score) * Decimal("100") if max_score else Decimal("0")
-    return {"attempt": attempt, "score": score, "max_score": max_score,
-            "percentage": percentage.quantize(Decimal("0.1"))}
+    grade = grade_summary(attempt)
+    return {"attempt": attempt, "score": grade["score"], "max_score": grade["max_score"],
+            "percentage": grade["percent"]}
 
 
 def attempt_state(attempt):
@@ -80,6 +77,7 @@ def attempt_state(attempt):
     order = attempt.option_orders.get(str(q.id), [])
     by_id = {o.id: o for o in Option.objects.filter(id__in=order)}
     draft = Response.objects.filter(attempt=attempt, question=q).first()
+    rule = attempt.grading_snapshot.get("multiple_scoring", attempt.exam.multiple_scoring)
     return {
         "status": attempt.status,
         "index": attempt.current_index + 1,
@@ -90,6 +88,7 @@ def attempt_state(attempt):
             "multiple": q.question_type == Question.MULTIPLE,
             "type_label": q.get_question_type_display(),
             "points": str(q.points.normalize()),
+            "scoring_rule": Exam.SCORING_RULES[rule] if q.question_type == Question.MULTIPLE else "",
             "options": [{"id": i, "text": by_id[i].text} for i in order if i in by_id],
             "selected": draft.selected_option_ids if draft else [],
         },
@@ -170,6 +169,10 @@ def start_exam(request, exam_id):
         if existing and existing.status != Attempt.INTERRUPTED:
             return redirect("take_exam", attempt_id=existing.id)
 
+        if exam.closed_at:
+            messages.error(request, "Cet examen a été clôturé par l'enseignant : aucune nouvelle tentative n'est possible.")
+            return redirect("student_dashboard")
+
         questions = list(exam.questions.prefetch_related("options").all())
         if not questions:
             messages.error(request, "Aucune question disponible.")
@@ -178,6 +181,7 @@ def start_exam(request, exam_id):
             return render(request, "qcm/exam_instructions.html", {
                 "exam": exam, "question_count": len(questions), "max_score": exam_max_score(exam),
                 "confirmation_missing": request.method == "POST",
+                "scoring_rule": Exam.SCORING_RULES[exam.multiple_scoring],
             })
         attempt = _create_attempt(exam, request.user, questions)
     return redirect("take_exam", attempt_id=attempt.id)
@@ -200,7 +204,8 @@ def _create_attempt(exam, student, questions):
         option_orders[str(q.id)] = [o.id for o in opts]
     return Attempt.objects.create(exam=exam, student=student, question_order=order, option_orders=option_orders,
                                   global_deadline=global_deadline, question_started_at=now,
-                                  question_deadline=first_question_deadline)
+                                  question_deadline=first_question_deadline,
+                                  grading_snapshot=build_grading(exam, questions))
 
 
 @login_required

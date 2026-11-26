@@ -46,7 +46,7 @@
         <td class="small">{{ e.get_audience_mode_display }}{% if e.target_level %} · {{ e.get_target_level_display }}{% endif %}</td>
         <td>{{ e.question_count }}</td>
         <td>{{ e.duration_minutes }} min</td>
-        <td><span class="badge {% if e.published %}published{% else %}draft{% endif %}">{{ e.state_label }}</span></td>
+        <td><span class="badge {{ e.state_badge }}">{{ e.state_label }}</span></td>
         <td><div class="actions">
           <a class="btn ghost sm" href="{% url 'teacher_exam' e.id %}">Gérer</a>
           {% if e.published %}<a class="btn sm" href="{% url 'exam_results' e.id %}">Résultats</a>{% endif %}
@@ -78,6 +78,7 @@
           </label>
           <label style="width:140px">Durée (min)<input type="number" name="duration" value="60" min="1" max="180" required></label>
         </div>
+        {% include "qcm/_exam_settings_fields.html" with exam=None %}
         <button class="btn" type="submit">Créer l'examen</button>
       </form>
     </details>
