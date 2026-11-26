@@ -44,6 +44,34 @@
     </div>
 
     <div class="card flat">
+      <h3>Fenêtre d'ouverture</h3>
+      <form method="post" action="{% url 'update_exam_window' exam.id %}" class="stack">
+        {% csrf_token %}
+        <label>Ouverture<input type="datetime-local" name="opens_at" {% if exam.opens_at %}value="{{ exam.opens_at|date:'Y-m-d' }}T{{ exam.opens_at|date:'H:i' }}"{% endif %}></label>
+        <label>Fermeture<input type="datetime-local" name="closes_at" {% if exam.closes_at %}value="{{ exam.closes_at|date:'Y-m-d' }}T{{ exam.closes_at|date:'H:i' }}"{% endif %}></label>
+        <button class="btn ghost" type="submit">Enregistrer</button>
+      </form>
+      <p class="help">Laisser vide pour ouverture/fermeture sans limite. Une tentative commencée avant la fermeture peut continuer jusqu'à sa durée.</p>
+    </div>
+
+    <div class="card flat">
+      <h3>Dupliquer</h3>
+      <form method="post" action="{% url 'duplicate_exam' exam.id %}" class="stack">
+        {% csrf_token %}
+        <label>Classe cible
+          <select name="classroom_id">
+            <option value="">Sans classe / conserver le ciblage</option>
+            {% for c in classrooms %}
+            <option value="{{ c.id }}" {% if exam.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="btn ghost" type="submit">Dupliquer en brouillon</button>
+      </form>
+      <p class="help">Copie l'examen, ses questions et propositions. Aucune tentative ni affectation n'est copiée. Nouveau code d'accès.</p>
+    </div>
+
+    <div class="card flat">
       <h3>Liste d'étudiants (CSV)</h3>
       <p class="help">Colonne <code>matricule</code> obligatoire. L'import bascule l'examen en mode « étudiants sélectionnés ».</p>
       <form method="post" enctype="multipart/form-data" action="{% url 'import_exam_students' exam.id %}">
@@ -61,7 +89,7 @@
   </aside>
 
   <section>
-    {% if not exam.published %}
+    {% if not exam.published and not has_attempts %}
     <div class="card">
       <h2>Ajouter une question</h2>
       <form method="post" action="{% url 'add_question' exam.id %}">
@@ -98,10 +126,21 @@
             {% for o in q.options.all %}<li class="{% if o.is_correct %}correct{% endif %}">{% if o.is_correct %}✓ {% endif %}{{ o.text }}</li>{% endfor %}
           </ul>
         </div>
-        {% if not exam.published %}
-        <form method="post" action="{% url 'delete_question' exam.id q.id %}" data-confirm="Supprimer cette question ?">
-          {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Supprimer</button>
-        </form>
+        {% if not exam.published and not has_attempts %}
+        <div class="actions" style="margin-left:12px">
+          <a class="btn ghost sm" href="{% url 'edit_question' exam.id q.id %}">Modifier</a>
+          <form method="post" action="{% url 'move_question' exam.id q.id %}">
+            {% csrf_token %}<input type="hidden" name="direction" value="up">
+            <button class="btn ghost sm" type="submit" {% if forloop.first %}disabled{% endif %}>↑</button>
+          </form>
+          <form method="post" action="{% url 'move_question' exam.id q.id %}">
+            {% csrf_token %}<input type="hidden" name="direction" value="down">
+            <button class="btn ghost sm" type="submit" {% if forloop.last %}disabled{% endif %}>↓</button>
+          </form>
+          <form method="post" action="{% url 'delete_question' exam.id q.id %}" data-confirm="Supprimer cette question ?">
+            {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Supprimer</button>
+          </form>
+        </div>
         {% endif %}
       </div>
       {% empty %}<p class="muted mb-0">Aucune question. Ajoutez-en ci-dessus ou importez un sujet.</p>{% endfor %}

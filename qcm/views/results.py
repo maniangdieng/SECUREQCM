@@ -1,11 +1,13 @@
 import csv
 from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.http import HttpResponse, HttpResponseForbidden
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam
@@ -42,6 +44,24 @@ def exam_results(request, exam_id):
         "average": average,
         "enrollment_count": exam.enrollments.count(),
     })
+
+
+@login_required
+@require_POST
+def publish_results(request, exam_id):
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
+    if not exam.published:
+        messages.error(request, "Publiez d'abord l'examen avant de publier les notes.")
+        return redirect("teacher_exam", exam_id=exam.id)
+    if exam.results_published:
+        messages.info(request, "Les notes de cet examen sont déjà publiées.")
+    else:
+        exam.results_published = True
+        exam.save(update_fields=["results_published"])
+        messages.success(request, "Les notes sont désormais visibles par les étudiants.")
+    return redirect("exam_results", exam_id=exam.id)
 
 
 @login_required

@@ -78,6 +78,11 @@
           </label>
           <label style="width:140px">Durée (min)<input type="number" name="duration" value="60" min="1" max="180" required></label>
         </div>
+        <div class="row">
+          <label class="grow">Ouverture (facultatif)<input type="datetime-local" name="opens_at"></label>
+          <label class="grow">Fermeture (facultatif)<input type="datetime-local" name="closes_at"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="results_published"> Publier les notes dès la correction</label>
         <button class="btn" type="submit">Créer l'examen</button>
       </form>
     </details>

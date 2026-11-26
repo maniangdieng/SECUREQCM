@@ -6,7 +6,16 @@
 </div>
 <div class="page-head">
   <div><h1>Résultats</h1><p>{{ exam.title }}</p></div>
-  <a class="btn" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV (Excel)</a>
+  <div class="actions">
+    {% if exam.results_published %}
+      <span class="badge ok">Notes publiées</span>
+    {% else %}
+      <form method="post" action="{% url 'publish_results' exam.id %}" data-confirm="Publier les notes ? Les étudiants verront leur score.">
+        {% csrf_token %}<button class="btn" type="submit">Publier les notes</button>
+      </form>
+    {% endif %}
+    <a class="btn ghost" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV (Excel)</a>
+  </div>
 </div>
 
 <div class="grid grid-stats" style="margin-bottom:20px">

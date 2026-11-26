@@ -5,6 +5,7 @@ Garder ici ce qui n'est pas spécifique à une page facilite les tests et le tra
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import Exam, ExamEnrollment, ClassroomMembership
 
@@ -62,6 +63,15 @@ def visible_exams_for_student(user, classroom=None):
     if classroom is not None:
         qs = qs.filter(classroom=classroom)
     return qs.distinct().select_related("classroom").order_by("-created_at")
+
+
+def exam_window_message(exam, now=None):
+    now = now or timezone.now()
+    if exam.opens_at and now < exam.opens_at:
+        return f"Cet examen ouvrira le {timezone.localtime(exam.opens_at):%d/%m/%Y à %H:%M}."
+    if exam.closes_at and now >= exam.closes_at:
+        return f"Cet examen est fermé depuis le {timezone.localtime(exam.closes_at):%d/%m/%Y à %H:%M}."
+    return None
 
 
 # --------------------------------------------------------------------------- #

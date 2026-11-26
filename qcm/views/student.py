@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Attempt, ClassroomMembership
 from ..permissions import role, is_classroom_student
-from ..services import visible_exams_for_student
+from ..services import exam_window_message, visible_exams_for_student
 from .common import redirect_back
 
 
@@ -53,6 +53,14 @@ def join_exam_by_code(request):
     if not exam:
         messages.error(request, "Code d'examen invalide ou examen non disponible.")
         return back
+    in_progress = Attempt.objects.filter(
+        exam=exam, student=request.user, status=Attempt.IN_PROGRESS,
+    ).exists()
+    if not in_progress:
+        window_error = exam_window_message(exam)
+        if window_error:
+            messages.error(request, window_error)
+            return back
     profile = request.user.profile
     if exam.audience_mode == "LEVEL":
         if not exam.target_level or not profile.study_level or profile.study_level != exam.target_level:

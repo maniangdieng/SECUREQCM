@@ -22,7 +22,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role
-from ..services import calculate_score, exam_max_score
+from ..services import calculate_score, exam_max_score, exam_window_message
 
 SECURITY_EVENTS = {"TAB_SWITCH", "FULLSCREEN_EXIT"}
 MAX_VIOLATIONS = 2
@@ -82,13 +82,18 @@ def start_exam(request, exam_id):
     if existing and existing.status != Attempt.INTERRUPTED:
         return redirect("take_exam", attempt_id=existing.id)
 
+    now = timezone.now()
+    window_error = exam_window_message(exam, now)
+    if window_error:
+        messages.error(request, window_error)
+        return redirect("student_dashboard")
+
     questions = list(exam.questions.prefetch_related("options").all())
     if not questions:
         messages.error(request, "Aucune question disponible.")
         return redirect("student_dashboard")
     if exam.shuffle_questions:
         random.shuffle(questions)
-    now = timezone.now()
     order = [q.id for q in questions]
     global_deadline = now + timedelta(minutes=exam.duration_minutes)
     first_question_seconds, remainder = divmod(exam.duration_minutes * 60, len(order))

@@ -3,6 +3,7 @@ import secrets
 import string
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 def _random_code(length):
@@ -95,6 +96,9 @@ class Exam(models.Model):
     classroom = models.ForeignKey(Classroom, on_delete=models.PROTECT, null=True, blank=True, related_name="exams")
     duration_minutes = models.PositiveIntegerField(default=60)
     published = models.BooleanField(default=False)
+    results_published = models.BooleanField("Notes publiées", default=False)
+    opens_at = models.DateTimeField("Ouverture", null=True, blank=True)
+    closes_at = models.DateTimeField("Fermeture", null=True, blank=True)
     shuffle_questions = models.BooleanField(default=True)
     shuffle_answers = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -113,6 +117,19 @@ class Exam(models.Model):
         if self.is_archived:
             return "Archivé"
         return "Publié" if self.published else "Brouillon"
+
+    @property
+    def window_state(self):
+        now = timezone.now()
+        if self.opens_at and now < self.opens_at:
+            return "BEFORE"
+        if self.closes_at and now >= self.closes_at:
+            return "AFTER"
+        return "OPEN"
+
+    @property
+    def is_open(self):
+        return self.window_state == "OPEN"
 
 
 class ExamEnrollment(models.Model):

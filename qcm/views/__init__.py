@@ -16,11 +16,12 @@ from .admin import (admin_dashboard, admin_users, admin_set_role, admin_toggle_a
 from .classrooms import (create_classroom, classroom_detail, update_classroom, regenerate_class_code,  # noqa: F401
                          archive_classroom, delete_classroom, add_coteacher, add_students_to_classroom,
                          remove_classroom_member, join_classroom, leave_classroom)
-from .teacher import (teacher_dashboard, create_exam, update_exam_duration, delete_exam, teacher_exam,  # noqa: F401
-                      add_question, delete_question, publish_exam, import_exam_students)
+from .teacher import (teacher_dashboard, create_exam, update_exam_duration, update_exam_window,  # noqa: F401
+                      duplicate_exam, delete_exam, teacher_exam, add_question, edit_question,
+                      move_question, delete_question, publish_exam, import_exam_students)
 from .imports import import_qcm, import_qcm_preview  # noqa: F401
 from .student import student_dashboard, join_exam_by_code  # noqa: F401
 from .attempts import (start_exam, take_exam, submit_answer, security_event,  # noqa: F401
                        question_time_seconds, advance, close_attempt, finished_score_context)
-from .results import exam_results, attempt_result_detail, export_exam_results  # noqa: F401
+from .results import exam_results, publish_results, attempt_result_detail, export_exam_results  # noqa: F401
 from ..services import calculate_score  # noqa: F401  (compatibilité avec l'ancien import)

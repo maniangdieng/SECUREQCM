@@ -110,14 +110,14 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P1 : limiter les tentatives de connexion** (bruteforce), par exemple avec `django-axes`.
 - [ ] **P1 : test de charge** avec l'effectif maximal (ex. 200 étudiants simultanés) sur la machine cible.
 - [ ] **P2 : intégration Safe Exam Browser** (fichier `.seb`, vérification des en-têtes BEK/CK).
-- [ ] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin) : aujourd'hui un examen publié reste ouvert indéfiniment.
+- [x] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin) : `opens_at` / `closes_at`, démarrage refusé hors fenêtre, tentative déjà commencée poursuivie.
 - [ ] **P2 : action enseignant « autoriser une reprise »** après une clôture de sécurité contestée (avec trace dans le journal), puisque la clôture est définitive par conception.
 - [ ] **P2 : supprimer un enseignant** qui possède des examens avec tentatives provoque une erreur (`Exam.teacher` en CASCADE mais `Attempt.exam` en PROTECT). Décider : `PROTECT` ou transfert des examens à un autre enseignant.
 - [ ] **P3 : journal d'audit** des actions admin (changement de rôle, suppression, archivage).
 
 ### 3.2 Fonctionnalités façon Google Classroom
 - [ ] **P2 : flux de la classe (annonces)** : l'enseignant publie un message et les étudiants le voient dans la classe.
-- [ ] **P2 : publication des notes** : l'enseignant choisit quand les étudiants voient leur note (aujourd'hui le score s'affiche immédiatement en fin d'examen).
+- [x] **P2 : publication des notes** : `Exam.results_published`, page « Copie remise » sans note tant que non publié, bouton « Publier les notes » côté enseignant.
 - [ ] **P2 : page « Notes » de la classe** : tableau étudiants × examens, avec export.
 - [ ] **P2 : invitation par e-mail** (étudiants et co-enseignants) et **réinitialisation du mot de passe** par e-mail. Il faut configurer `EMAIL_BACKEND` et ajouter les templates `registration/password_reset_*`.
 - [ ] **P2 : page « Mon profil »** : changer son mot de passe ou son e-mail. Les templates `registration/password_change_*` manquent : Django affiche pour l'instant ceux de l'admin.
@@ -125,8 +125,8 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P3 : archiver un examen depuis l'espace enseignant** (aujourd'hui réservé à l'admin).
 
 ### 3.3 Gestion des examens et questions
-- [ ] **P2 : modifier une question** d'un brouillon (aujourd'hui : supprimer puis recréer) et **réordonner** les questions.
-- [ ] **P2 : dupliquer un examen** (vers la même classe ou une autre), pour réutiliser un sujet d'une année sur l'autre.
+- [x] **P2 : modifier une question** d'un brouillon (énoncé, propositions, bonnes réponses, points) et **réordonner** les questions, avec verrous et validations.
+- [x] **P2 : dupliquer un examen** (vers la même classe ou une autre), pour réutiliser un sujet d'une année sur l'autre.
 - [ ] **P2 : banque de questions** réutilisable par enseignant, et tirage aléatoire de N questions parmi M.
 - [ ] **P3 : images dans les questions** (`ImageField` + `MEDIA_ROOT`).
 - [ ] **P3 : OCR** pour les PDF scannés (Tesseract).
