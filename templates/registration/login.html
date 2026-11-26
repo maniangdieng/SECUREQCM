@@ -20,6 +20,7 @@
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
     <button class="btn lg block" type="submit">Se connecter</button>
   </form>
+  <p class="center" style="margin-top:12px"><a href="{% url 'password_reset' %}">Mot de passe oublié ?</a></p>
   <hr>
   <p class="center muted mb-0">Pas encore de compte ? <a href="{% url 'student_register' %}">Créer un compte étudiant</a></p>
 </div>
