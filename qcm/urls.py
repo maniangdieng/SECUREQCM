@@ -7,6 +7,7 @@ urlpatterns = [
 
     # Comptes
     path("accounts/register/", views.student_register, name="student_register"),
+    path("accounts/profile/", views.profile, name="profile"),
 
     # Administration
     path("dashboard/admin/", views.admin_dashboard, name="admin_dashboard"),
