@@ -7,7 +7,8 @@ from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect
 
-from ..importers import parse_uploaded_questions, extract_text, apply_answer_key, parse_answer_key_xlsx
+from ..importers import (InvalidQuestions, apply_answer_key, check_questions, extract_text,
+                         parse_answer_key_xlsx, parse_uploaded_questions)
 from ..models import Profile, Exam, Question, Option, Classroom
 from ..permissions import is_teacher_or_admin, can_manage_classroom
 from .teacher import manageable_classrooms
@@ -20,6 +21,7 @@ def import_qcm(request):
     if not is_teacher_or_admin(request.user):
         return HttpResponseForbidden("Accès réservé aux enseignants.")
     classrooms = manageable_classrooms(request.user).filter(is_archived=False)
+    errors = []
     if request.method == "POST":
         uploaded = request.FILES.get("subject_file")
         mode = request.POST.get("answer_mode", "integrated")
@@ -65,6 +67,7 @@ def import_qcm(request):
                     q["correct"] = []
             elif mode != "integrated":
                 raise ValueError("Mode de correction inconnu.")
+            check_questions(questions)
             request.session["qcm_import_preview"] = {
                 "title": title or Path(uploaded.name).stem[:190],
                 "description": description,
@@ -77,10 +80,13 @@ def import_qcm(request):
                 "questions": questions,
             }
             return redirect("import_qcm_preview")
+        except InvalidQuestions as exc:
+            errors = exc.errors
         except (ValueError, OSError, TypeError) as exc:
             messages.error(request, str(exc))
     return render(request, "qcm/import_qcm.html", {
         "classrooms": classrooms,
+        "import_errors": errors,
         "levels": Profile.LEVEL_CHOICES,
         "selected_classroom": request.GET.get("classe", ""),
     })
@@ -113,7 +119,11 @@ def import_qcm_preview(request):
             if not q["correct"]:
                 messages.error(request, f"Veuillez indiquer au moins une bonne réponse à la question conservée n°{display_index}.")
                 return render(request, "qcm/import_preview.html", {"payload": payload})
-            q["type"] = "MULTIPLE" if len(q["correct"]) > 1 else "SINGLE"
+            declared = q.get("type")  # fourni par le JSON uniquement
+            if declared == "SINGLE" and len(q["correct"]) > 1:
+                messages.error(request, f"La question conservée n°{display_index} est à réponse unique : cochez une seule bonne réponse.")
+                return render(request, "qcm/import_preview.html", {"payload": payload})
+            q["final_type"] = declared or ("MULTIPLE" if len(q["correct"]) > 1 else "SINGLE")
 
         classroom = None
         if payload.get("classroom_id"):
@@ -137,12 +147,12 @@ def import_qcm_preview(request):
                 )
                 for position, (_, qdata) in enumerate(questions, 1):
                     question = Question.objects.create(
-                        exam=exam, text=qdata["text"], question_type=qdata.get("type", "SINGLE"),
-                        duration_seconds=0, points=Decimal("1"), position=position,
+                        exam=exam, text=qdata["text"], question_type=qdata["final_type"],
+                        duration_seconds=0, points=Decimal(qdata.get("points", "1")), position=position,
                     )
                     for option_position, option in enumerate(qdata["options"], 1):
                         Option.objects.create(
-                            question=question, text=option["text"][:500],
+                            question=question, text=option["text"],
                             is_correct=option["letter"] in qdata["correct"], position=option_position,
                         )
             request.session.pop("qcm_import_preview", None)

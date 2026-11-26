@@ -41,7 +41,7 @@ Ces règles sont couvertes par des tests automatisés. **Ne pas les modifier san
 6. **Notation** : en réponse unique, c'est tout ou rien. En réponses multiples, la note est partielle (bonnes − mauvaises) / nombre de bonnes, bornée entre 0 et 1. Les questions sans réponse valent 0 et la note est ramenée sur 20.
 7. **Cycle de vie d'un examen** : sans tentative, suppression normale. Avec tentatives, archivage obligatoire. La suppression définitive d'un examen archivé exige l'export CSV et la saisie de `SUPPRIMER` (admin uniquement).
 8. **Durée et questions** sont verrouillées dès qu'une tentative existe ; les questions le sont aussi dès la publication.
-9. **Import** de sujets PDF, DOCX ou XLSX, avec corrigé intégré, séparé ou manuel, puis prévisualisation et création en brouillon.
+9. **Import** de sujets PDF, DOCX, XLSX ou JSON, avec corrigé intégré, séparé ou manuel, puis prévisualisation et création en brouillon. Si une question est invalide, rien n'est importé et chaque problème est signalé (numéro et motif).
 
 ### 1.3 Architecture du code
 
@@ -52,7 +52,7 @@ qcm/
                       Question, Option, Attempt, Response, SecurityEvent
   permissions.py      TOUTES les règles d'accès (role, can_manage_exam, can_manage_classroom…)
   services.py         logique métier partagée : affectations, calcul des notes
-  importers.py        lecture PDF / Word / Excel
+  importers.py        lecture PDF / Word / Excel / JSON
   urls.py             routes de l'application
   views/              une vue par espace fonctionnel (voir la répartition de l'équipe plus bas)
     auth.py  admin.py  classrooms.py  teacher.py  imports.py  student.py  attempts.py  results.py
