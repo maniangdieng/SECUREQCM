@@ -8,7 +8,7 @@ from django.shortcuts import render, get_object_or_404
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
 from ..services import (RESULT_HEADER, close_expired_attempts, exam_attempts, grade_summary, graded_attempts,
-                        grading_of, result_rows)
+                        grading_of, question_stats, result_rows)
 
 
 def csv_safe(value):
@@ -38,6 +38,7 @@ def exam_results(request, exam_id):
         "in_progress_count": len(rows) - len(finished),
         "average": average,
         "enrollment_count": exam.enrollments.count(),
+        "question_stats": question_stats(exam),
     })
 
 

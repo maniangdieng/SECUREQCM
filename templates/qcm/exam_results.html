@@ -40,4 +40,31 @@
     </tbody>
   </table></div>
 </div>
+
+<div class="section">
+  <h2>Analyse par question</h2>
+  {% if question_stats %}
+  <p class="muted">{{ question_stats.0.total }} copie{{ question_stats.0.total|pluralize }} terminée{{ question_stats.0.total|pluralize }}.
+    Réussite : réponse entièrement juste. « Trop facile » au-delà de 90 %, « Trop difficile » en dessous de 20 %.</p>
+  {% for s in question_stats %}
+  <div class="card">
+    <div class="card-title">
+      <h3>{{ forloop.counter }}. {{ s.question.text }}</h3>
+      {% if s.level == 'easy' %}<span class="badge draft">Trop facile</span>{% elif s.level == 'hard' %}<span class="badge danger">Trop difficile</span>{% endif %}
+    </div>
+    <p class="small">Réussite : <strong>{{ s.success_rate|floatformat }}&nbsp;%</strong> · Sans réponse : <strong>{{ s.blank_rate|floatformat }}&nbsp;%</strong></p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Proposition</th><th>Choisie par</th><th>%</th></tr></thead>
+      <tbody>
+      {% for o in s.options %}
+      <tr><td>{{ o.option.text }}{% if o.correct %} <span class="badge ok">Bonne réponse</span>{% endif %}</td><td>{{ o.count }}</td><td>{{ o.rate|floatformat }}&nbsp;%</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted">L'analyse apparaîtra dès qu'une copie sera terminée.</p>
+  {% endif %}
+</div>
 {% endblock %}

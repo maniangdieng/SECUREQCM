@@ -76,7 +76,7 @@ class ResultsExportTests(ExamFixture):
 
         urls = ("", "export/", "export.xlsx")
         # Copies démarrées avant que le barème soit figé : il est recalculé depuis l'examen.
-        Attempt.objects.filter(pk=self.attempt.pk).update(grading_snapshot={})
+        Attempt.objects.filter(pk=self.attempt.pk).update(grading_snapshot={}, status=Attempt.COMPLETED)
         self.attempt.grading_snapshot = {}
         before = [queries(url) for url in urls]
         for n in range(3):

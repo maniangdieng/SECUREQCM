@@ -3,6 +3,7 @@ Logique métier partagée entre les vues : affectations aux examens, déroulemen
 et notation.
 Garder ici ce qui n'est pas spécifique à une page facilite les tests et le travail en équipe.
 """
+from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
@@ -257,3 +258,58 @@ def result_rows(exam):
             g["final_grade"],
             attempt.violation_count,
         ]
+
+
+# --------------------------------------------------------------------------- #
+# Analyse par question
+# --------------------------------------------------------------------------- #
+TOO_EASY_ABOVE, TOO_HARD_BELOW = 90, 20  # % de réussite
+
+
+def question_stats(exam):
+    """
+    Réussite, non-réponse et propositions choisies pour chaque question, sur les copies terminées
+    (une tentative interrompue est remplacée : elle ne compte pas). Réussite = réponse exactement
+    juste selon le barème figé de la copie, même en notation partielle.
+    """
+    done = exam.attempts.filter(status__in=[Attempt.COMPLETED, Attempt.TIME_EXPIRED, Attempt.TERMINATED_SECURITY])
+    snapshots = dict(done.values_list("pk", "grading_snapshot"))
+    if not snapshots:
+        return []
+    questions = list(exam.questions.prefetch_related("options"))
+    fallback = None if all(snapshots.values()) else build_grading(exam, questions)
+    # ponytail: réponses agrégées en Python (une seule requête) car les choix sont en JSON ;
+    # passer à une agrégation SQL si un examen dépasse quelques dizaines de milliers de réponses.
+    responses = {(attempt, question): selected for attempt, question, selected in
+                 Response.objects.filter(attempt__in=done)
+                 .values_list("attempt_id", "question_id", "selected_option_ids")}
+
+    stats = []
+    for question in questions:
+        total = right = blank = 0
+        chosen, key = Counter(), set()
+        for pk, snapshot in snapshots.items():
+            graded = (snapshot or fallback)["questions"].get(str(question.id))
+            if graded is None:
+                continue
+            total += 1
+            correct, selected = set(graded["correct"]), set(responses.get((pk, question.id), ()))
+            key |= correct
+            chosen.update(selected)
+            blank += not selected
+            right += bool(correct) and selected == correct
+        if not total:
+            continue
+
+        def rate(count):
+            return round(100 * count / total, 1)
+
+        # Comparaison en entiers : exactement 90 % ou 20 % n'est pas signalé.
+        level = "easy" if 100 * right > TOO_EASY_ABOVE * total else "hard" if 100 * right < TOO_HARD_BELOW * total else ""
+        stats.append({
+            "question": question, "total": total, "level": level,
+            "success_rate": rate(right), "blank_rate": rate(blank),
+            "options": [{"option": o, "count": chosen[o.id], "rate": rate(chosen[o.id]), "correct": o.id in key}
+                        for o in question.options.all()],
+        })
+    return stats
