@@ -1,12 +1,16 @@
 """
-Logique métier partagée entre les vues : affectations aux examens et notation.
+Logique métier partagée entre les vues : affectations aux examens, déroulement des tentatives
+et notation.
 Garder ici ce qui n'est pas spécifique à une page facilite les tests et le travail en équipe.
 """
+from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
-from .models import Exam, ExamEnrollment, ClassroomMembership
+from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Response
 
 
 # --------------------------------------------------------------------------- #
@@ -62,6 +66,91 @@ def visible_exams_for_student(user, classroom=None):
     if classroom is not None:
         qs = qs.filter(classroom=classroom)
     return qs.distinct().select_related("classroom").order_by("-created_at")
+
+
+# --------------------------------------------------------------------------- #
+# Déroulement d'une tentative (temps contrôlé côté serveur)
+# --------------------------------------------------------------------------- #
+def locked_attempts():
+    """
+    Tentatives verrouillées jusqu'à la fin de la transaction : toute route qui en modifie une
+    passe par ici. Seule la ligne de la tentative est verrouillée (of="self"), sinon les
+    étudiants d'un même examen s'attendraient les uns les autres.
+    """
+    return Attempt.objects.select_for_update(of=("self",)).select_related("exam")
+
+
+def question_time_seconds(attempt, index=None):
+    """Répartit exactement la durée totale, en secondes entières, entre les questions."""
+    count = len(attempt.question_order)
+    if count <= 0:
+        return 0
+    if index is None:
+        index = attempt.current_index
+    total_seconds = int(attempt.exam.duration_minutes) * 60
+    base_seconds, extra_seconds = divmod(total_seconds, count)
+    # Les premières questions reçoivent chacune une seconde supplémentaire
+    # lorsque la division ne tombe pas juste : la somme est exactement égale
+    # à la durée totale de l'examen.
+    return base_seconds + (1 if 0 <= index < extra_seconds else 0)
+
+
+@transaction.atomic
+def advance(attempt):
+    """Passe à la question suivante ; sans réponse enregistrée, la question est notée blanche."""
+    Response.objects.get_or_create(
+        attempt=attempt, question_id=attempt.question_order[attempt.current_index],
+        defaults={"selected_option_ids": [], "auto_submitted": True},
+    )
+    attempt.current_index += 1
+    if attempt.current_index >= len(attempt.question_order):
+        close_attempt(attempt, Attempt.COMPLETED)
+        return
+    now = timezone.now()
+    attempt.question_started_at = now
+    allotted = timedelta(seconds=question_time_seconds(attempt, attempt.current_index))
+    attempt.question_deadline = min(attempt.global_deadline, now + allotted)
+    attempt.save(update_fields=["current_index", "question_started_at", "question_deadline"])
+
+
+def close_attempt(attempt, status):
+    attempt.status = status
+    # Temps écoulé : la fin est l'échéance, même si la clôture est constatée plus tard.
+    attempt.ended_at = attempt.global_deadline if status == Attempt.TIME_EXPIRED else timezone.now()
+    attempt.save(update_fields=["status", "ended_at"])
+
+
+def apply_deadlines(attempt):
+    """
+    Applique les échéances serveur : clôture si le temps global est écoulé, passage à la question
+    suivante quand le temps d'une question est écoulé. La sélection sauvegardée automatiquement
+    est conservée. Ne fait rien si la tentative est close. À appeler sur une tentative verrouillée.
+    """
+    while attempt.status == Attempt.IN_PROGRESS:
+        now = timezone.now()
+        if now < min(attempt.global_deadline, attempt.question_deadline):
+            break
+        current = attempt.question_order[attempt.current_index:attempt.current_index + 1]
+        Response.objects.filter(attempt=attempt, question_id__in=current).update(auto_submitted=True)
+        if now >= attempt.global_deadline:
+            close_attempt(attempt, Attempt.TIME_EXPIRED)
+        else:
+            advance(attempt)
+    return attempt
+
+
+def close_expired_attempts(attempts=None):
+    """Clôt les tentatives dont le temps global est écoulé, même si l'étudiant n'est pas revenu."""
+    attempts = Attempt.objects.all() if attempts is None else attempts
+    expired = attempts.filter(status=Attempt.IN_PROGRESS, global_deadline__lte=timezone.now())
+    closed = 0
+    for pk in list(expired.values_list("pk", flat=True)):
+        with transaction.atomic():
+            attempt = locked_attempts().get(pk=pk)
+            if attempt.status == Attempt.IN_PROGRESS:  # a pu changer avant l'obtention du verrou
+                apply_deadlines(attempt)
+                closed += attempt.status != Attempt.IN_PROGRESS
+    return closed
 
 
 # --------------------------------------------------------------------------- #

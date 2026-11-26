@@ -20,7 +20,7 @@ from .teacher import (teacher_dashboard, create_exam, update_exam_duration, dele
                       add_question, delete_question, publish_exam, import_exam_students)
 from .imports import import_qcm, import_qcm_preview  # noqa: F401
 from .student import student_dashboard, join_exam_by_code  # noqa: F401
-from .attempts import (start_exam, take_exam, submit_answer, submit_answer_api, security_event,  # noqa: F401
+from .attempts import (start_exam, take_exam, submit_answer_api, save_answer, security_event,  # noqa: F401
                        authorize_resume, question_time_seconds, advance, close_attempt, finished_score_context)
 from .results import exam_results, attempt_result_detail, export_exam_results  # noqa: F401
 from ..services import calculate_score  # noqa: F401  (compatibilité avec l'ancien import)

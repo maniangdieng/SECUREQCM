@@ -183,6 +183,10 @@ class Attempt(models.Model):
     question_deadline = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["exam", "student"], condition=models.Q(status="IN_PROGRESS"),
+                                               name="uniq_attempt_in_progress")]
+
     def __str__(self):
         return f"{self.student} – {self.exam}"
 

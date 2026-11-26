@@ -10,12 +10,7 @@
   <div class="big-icon">⛶</div>
   <h1>{{ attempt.exam.title }}</h1>
   <p class="muted">Question {{ state.index }} sur {{ state.total }}</p>
-  <ul class="rules">
-    <li>L'examen se déroule en <strong>plein écran</strong>, du début à la fin.</li>
-    <li>Quitter le plein écran ou changer d'onglet est une <strong>violation</strong>.</li>
-    <li>1<sup>re</sup> violation : avertissement. 2<sup>e</sup> violation : <strong>clôture définitive</strong> de l'examen.</li>
-    <li>Pas de retour en arrière. À la fin du temps d'une question, la réponse est enregistrée automatiquement.</li>
-  </ul>
+  <ul class="rules">{% include "qcm/_exam_rules.html" %}</ul>
   {% if state.violations %}<div class="violation-banner">Attention : {{ state.violations }} violation déjà enregistrée. La prochaine clôturera l'examen.</div>{% endif %}
   <button class="btn lg" type="button" id="enterFullscreen">Commencer en plein écran</button>
 </div>
@@ -38,10 +33,11 @@
   <div class="card">
     <div class="question-text" id="qText"></div>
     <p class="muted small" id="qMeta"></p>
-    <form id="answerForm" method="post" action="{% url 'submit_answer' attempt.id %}">
+    <form id="answerForm" method="post" action="{% url 'submit_answer_api' attempt.id %}">
       {% csrf_token %}
       <input type="hidden" name="question_id" id="qId">
       <div id="qOptions"></div>
+      <p class="muted small" id="saveStatus" role="status" aria-live="polite"></p>
       <div class="spread" style="margin-top:16px">
         <span class="muted small">Le temps total de l'examen reste la limite absolue.</span>
         <button class="btn lg" type="submit" id="submitBtn">Valider et continuer →</button>
@@ -61,9 +57,19 @@
   </div>
   <div class="dialog-foot"><button class="btn" type="button" id="warnResume">Revenir en plein écran et continuer</button></div>
 </dialog>
+<dialog id="confirmDialog">
+  <div class="dialog-body">
+    <h2>Terminer l'examen ?</h2>
+    <p>C'est la dernière question. Après l'envoi, vous ne pourrez plus modifier aucune réponse.</p>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn ghost" type="button" id="confirmCancel">Revenir</button>
+    <button class="btn" type="button" id="confirmOk">Terminer l'examen</button>
+  </div>
+</dialog>
 <dialog id="endDialog">
   <div class="dialog-body">
-    <h2>Examen clôturé</h2>
+    <h2 id="endTitle">Examen clôturé</h2>
     <p id="endMessage">Deux violations ont été détectées : votre examen est clôturé.</p>
   </div>
   <div class="dialog-foot"><button class="btn" type="button" id="endOk">Retour à mon espace</button></div>
@@ -75,12 +81,13 @@
 (() => {
   const URLS = {
     answer: "{% url 'submit_answer_api' attempt.id %}",
+    save: "{% url 'save_answer' attempt.id %}",
     page: "{% url 'take_exam' attempt.id %}",
     home: "{% url 'student_dashboard' %}",
   };
   const $ = (id) => document.getElementById(id);
   const form = $('answerForm'), securityForm = $('securityForm');
-  const warnDialog = $('warnDialog'), endDialog = $('endDialog');
+  const warnDialog = $('warnDialog'), endDialog = $('endDialog'), confirmDialog = $('confirmDialog');
   const fmt = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
 
   let state = JSON.parse($('exam-state').textContent);
@@ -89,6 +96,8 @@
   let finished = false;     // examen terminé : plus aucune détection
   let submitting = false;   // une réponse est en cours d'envoi
   let reporting = false;    // un événement de sécurité est en cours d'envoi
+  let saving = false;       // une sauvegarde automatique est en cours
+  let dirty = false;        // la sélection a changé depuis la dernière sauvegarde
   let hidden = false;
 
   // ---------------------------------------------------------------- Affichage
@@ -110,6 +119,7 @@
       input.type = q.multiple ? 'checkbox' : 'radio';
       input.name = 'option';
       input.value = o.id;
+      input.checked = (q.selected || []).includes(o.id);  // sélection déjà sauvegardée
       const span = document.createElement('span');
       span.textContent = o.text;
       label.append(input, span);
@@ -119,6 +129,9 @@
     questionRemaining = s.question_remaining;
     globalRemaining = s.global_remaining;
     renderTimers();
+    dirty = false;
+    setSaveStatus((q.selected || []).length ? 'Enregistré' : '');
+    $('submitBtn').textContent = s.index === s.total ? "Terminer l'examen" : 'Valider et continuer →';
     $('submitBtn').disabled = false;
   }
   function renderTimers() {
@@ -132,18 +145,61 @@
     window.location.href = url || URLS.page;
   }
 
+  // ---------------------------------------------------------------- Échanges avec le serveur
+  // Renvoie le JSON, ou null si la page ne peut plus continuer (session expirée, requête refusée).
+  // Lève une erreur, donc un nouvel essai, seulement sur coupure réseau ou erreur du serveur (5xx).
+  async function post(url, body) {
+    const response = await fetch(url, {method: 'POST', body, credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+    if (response.status === 401 || response.redirected) { sessionExpired(); return null; }
+    if (response.status >= 500) throw new Error('HTTP ' + response.status);
+    if (!response.ok && response.status !== 409) { finish(); return null; }  // refus : on recharge la page
+    return response.json();
+  }
+  function sessionExpired() {
+    finished = true;
+    warnDialog.close();
+    confirmDialog.close();
+    $('endTitle').textContent = 'Session expirée';
+    $('endMessage').textContent = "Reconnectez-vous pour reprendre l'examen. Le temps continue de s'écouler.";
+    $('endOk').textContent = 'Se reconnecter';
+    if (!endDialog.open) endDialog.showModal();
+  }
+
+  // ---------------------------------------------------------------- Sauvegarde automatique (issue #23)
+  function setSaveStatus(text) { $('saveStatus').textContent = text; }
+  async function saveDraft() {  // un seul envoi à la fois, toujours avec la sélection la plus récente
+    if (!dirty || saving || submitting || !started || finished) return;
+    dirty = false;
+    saving = true;
+    const questionId = $('qId').value;
+    setSaveStatus('Enregistrement…');
+    try {
+      const result = await post(URLS.save, new FormData(form));
+      saving = false;
+      // Question changée ou réponse en cours d'envoi : ce retour ne concerne plus l'écran.
+      if (!result || finished || submitting || questionId !== $('qId').value) return saveDraft();
+      if (result.status !== 'IN_PROGRESS') return finish(result.redirect);
+      if (!result.saved) return render(result);  // le serveur est déjà passé à la question suivante
+      setSaveStatus('Enregistré');
+      saveDraft();
+    } catch (e) {
+      setSaveStatus('Connexion perdue : votre sélection sera enregistrée au retour du réseau.');
+      setTimeout(() => { saving = false; dirty = true; saveDraft(); }, 2000);
+    }
+  }
+  form.addEventListener('change', () => { dirty = true; saveDraft(); });
+  window.addEventListener('offline', () => setSaveStatus('Connexion perdue : votre sélection sera enregistrée au retour du réseau.'));
+  window.addEventListener('online', () => { dirty = true; saveDraft(); });
+
   // ---------------------------------------------------------------- Réponses (issue #1)
   async function submitAnswer() {
     if (submitting || finished) return;
     submitting = true;
+    confirmDialog.close();
     $('submitBtn').disabled = true;
     try {
-      const response = await fetch(URLS.answer, {
-        method: 'POST', body: new FormData(form), credentials: 'same-origin',
-        headers: {'Accept': 'application/json'},
-      });
-      if (!response.ok && response.status !== 409) throw new Error('HTTP ' + response.status);
-      const next = await response.json();
+      const next = await post(URLS.answer, new FormData(form));
+      if (!next) return;
       $('networkBanner').hidden = true;
       submitting = false;
       if (next.status !== 'IN_PROGRESS') return finish(next.redirect);
@@ -155,7 +211,13 @@
       setTimeout(() => { submitting = false; submitAnswer(); }, 2000);
     }
   }
-  form.addEventListener('submit', (event) => { event.preventDefault(); submitAnswer(); });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (state.index === state.total) confirmDialog.showModal();  // envoi final : confirmation
+    else submitAnswer();
+  });
+  $('confirmOk').addEventListener('click', submitAnswer);
+  $('confirmCancel').addEventListener('click', () => confirmDialog.close());
 
   // ---------------------------------------------------------------- Sécurité (issue #2)
   async function reportViolation(type) {
@@ -165,6 +227,7 @@
     data.set('event', type);
     try {
       const response = await fetch(securityForm.action, {method: 'POST', body: data, credentials: 'same-origin', keepalive: true});
+      if (response.status === 401) return sessionExpired();
       const result = await response.json();
       if (result.status === 'TERMINATED_SECURITY') {
         finished = true;

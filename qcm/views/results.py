@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
-from ..services import exam_max_score, grade_summary
+from ..services import close_expired_attempts, exam_max_score, grade_summary
 
 
 def csv_safe(value):
@@ -28,6 +28,7 @@ def exam_results(request, exam_id):
     exam = get_object_or_404(Exam.objects.select_related("classroom"), pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
+    close_expired_attempts(Attempt.objects.filter(exam=exam))
     attempts = (Attempt.objects.filter(exam=exam).select_related("student", "student__profile")
                 # Seules les vraies violations comptent (pas les doublons ignorés ni les reprises).
                 .annotate(violation_count=Count("security_events",
@@ -51,6 +52,8 @@ def attempt_result_detail(request, attempt_id):
     attempt = get_object_or_404(Attempt.objects.select_related("exam", "student"), pk=attempt_id)
     if not can_manage_exam(request.user, attempt.exam):
         return HttpResponseForbidden()
+    if close_expired_attempts(Attempt.objects.filter(pk=attempt.pk)):
+        attempt.refresh_from_db()
     details = []
     response_map = {r.question_id: r for r in attempt.responses.all()}
     for q in attempt.exam.questions.prefetch_related("options").order_by("position"):
@@ -73,6 +76,7 @@ def export_exam_results(request, exam_id):
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
+    close_expired_attempts(Attempt.objects.filter(exam=exam))
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="resultats_examen_{exam.id}.csv"'

@@ -33,7 +33,7 @@ class ExamFixture(TestCase):
             Option.objects.create(question=q, text="Faux", position=2)
         ExamEnrollment.objects.create(exam=self.exam, student=self.student, code_verified=True)
         self.client.force_login(self.student)
-        self.client.post(f"/student/exams/{self.exam.id}/start/")
+        self.client.post(f"/student/exams/{self.exam.id}/start/", {"confirm": "on"})
         self.attempt = Attempt.objects.get(student=self.student)
 
     def current_question(self):

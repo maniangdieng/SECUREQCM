@@ -52,7 +52,7 @@ urlpatterns = [
     path("student/join-exam/", views.join_exam_by_code, name="join_exam_by_code"),
     path("student/exams/<int:exam_id>/start/", views.start_exam, name="start_exam"),
     path("attempt/<int:attempt_id>/", views.take_exam, name="take_exam"),
-    path("attempt/<int:attempt_id>/answer/", views.submit_answer, name="submit_answer"),
     path("attempt/<int:attempt_id>/answer.json", views.submit_answer_api, name="submit_answer_api"),
+    path("attempt/<int:attempt_id>/save.json", views.save_answer, name="save_answer"),
     path("attempt/<int:attempt_id>/event/", views.security_event, name="security_event"),
 ]

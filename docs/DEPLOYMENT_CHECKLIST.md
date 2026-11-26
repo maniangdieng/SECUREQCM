@@ -9,6 +9,7 @@
 - [ ] Créer les comptes et affecter explicitement les rôles dans `/admin/`.
 - [ ] Tester les parcours enseignant et étudiant.
 - [ ] Tester les échéances côté serveur et les tentatives simultanées.
+- [ ] Planifier chaque minute `python manage.py close_expired_attempts` (cron : `* * * * *`) pour clôturer les tentatives des étudiants qui ne reviennent pas.
 - [ ] Tester Windows et macOS avec les versions SEB retenues.
 - [ ] Implémenter et vérifier l'authentification SEB réelle (BEK/CK) avant d'exiger SEB.
 - [ ] Définir une procédure humaine pour les coupures, pannes et contestations.
