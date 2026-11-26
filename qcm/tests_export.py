@@ -10,8 +10,10 @@ from openpyxl import load_workbook
 from .models import Attempt, SecurityEvent
 from .tests_examen_securite import ExamFixture, make_user
 
-HEADER = ["Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score", "Motif de clôture",
-          "Début", "Fin", "Score obtenu", "Score maximal", "Pourcentage (%)", "Note finale (/20)", "Violations"]
+HEADER = ["Identifiant examen", "Examen", "Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score",
+          "Motif de clôture", "Début", "Fin", "Durée effective (min)", "Score obtenu", "Score maximal",
+          "Pourcentage (%)", "Note finale (/20)", "Réponses justes", "Réponses fausses", "Sans réponse",
+          "Violations", "Détail des violations"]
 
 
 class ResultsExportTests(ExamFixture):
@@ -74,7 +76,7 @@ class ResultsExportTests(ExamFixture):
                 self.assertEqual(self.client.get(self.base + url).status_code, 200)
             return len(captured)
 
-        urls = ("", "export/", "export.xlsx")
+        urls = ("", "export/", "export.xlsx", "print/")
         # Copies démarrées avant que le barème soit figé : il est recalculé depuis l'examen.
         Attempt.objects.filter(pk=self.attempt.pk).update(grading_snapshot={}, status=Attempt.COMPLETED)
         self.attempt.grading_snapshot = {}

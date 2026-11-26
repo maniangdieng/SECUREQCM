@@ -33,13 +33,12 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role, can_authorize_resume
-from ..services import (build_grading, exam_max_score, grade_summary, locked_attempts, question_time_seconds,
-                        advance, close_attempt, apply_deadlines)
+from ..services import (RESUME_EVENT, VIOLATION_LABELS, build_grading, exam_max_score, grade_summary,
+                        locked_attempts, question_time_seconds, advance, close_attempt, apply_deadlines)
 
-SECURITY_EVENTS = {"TAB_SWITCH", "FULLSCREEN_EXIT"}
+SECURITY_EVENTS = set(VIOLATION_LABELS)
 MAX_VIOLATIONS = 2
 VIOLATION_DEBOUNCE_SECONDS = 3
-RESUME_EVENT = "RESUME_AUTHORIZED"
 IGNORED_EVENT = "VIOLATION_IGNORED"
 
 

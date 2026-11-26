@@ -4,11 +4,12 @@ from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
-from ..services import (RESULT_HEADER, close_expired_attempts, exam_attempts, grade_summary, graded_attempts,
-                        grading_of, question_stats, result_rows)
+from ..services import (PASS_MARK, RESULT_HEADER, close_expired_attempts, grade_summary, graded_rows, grading_of,
+                        question_stats, result_rows, results_summary)
 
 
 def csv_safe(value):
@@ -28,17 +29,25 @@ def exam_results(request, exam_id):
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
     close_expired_attempts(Attempt.objects.filter(exam=exam))
-    attempts = exam_attempts(exam).order_by("-started_at")
-    rows = [{"attempt": a, **g} for a, g in graded_attempts(exam, attempts)]
-    finished = [r for r in rows if r["attempt"].status != Attempt.IN_PROGRESS]
-    average = (sum(r["final_grade"] for r in finished) / len(finished)) if finished else None
+    rows = list(graded_rows(exam, "-started_at"))
     return render(request, "qcm/exam_results.html", {
-        "exam": exam, "rows": rows,
-        "completed_count": len(finished),
-        "in_progress_count": len(rows) - len(finished),
-        "average": average,
+        "exam": exam, "rows": rows, "summary": results_summary(rows), "pass_mark": PASS_MARK,
         "enrollment_count": exam.enrollments.count(),
         "question_stats": question_stats(exam),
+    })
+
+
+@login_required
+def print_exam_results(request, exam_id):
+    """Page imprimable : l'export PDF passe par « Enregistrer en PDF » du navigateur."""
+    exam = get_object_or_404(Exam.objects.select_related("classroom"), pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    close_expired_attempts(Attempt.objects.filter(exam=exam))
+    rows = list(graded_rows(exam, "student__last_name", "student__first_name", "student__username", "started_at"))
+    return render(request, "qcm/exam_results_print.html", {
+        "exam": exam, "rows": rows, "summary": results_summary(rows), "pass_mark": PASS_MARK,
+        "enrollment_count": exam.enrollments.count(), "printed_at": timezone.now(),
     })
 
 
