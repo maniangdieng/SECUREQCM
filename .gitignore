@@ -18,3 +18,6 @@ media/
 Thumbs.db
 .vscode/
 .idea/
+
+# Résultats du test de charge
+loadtest/resultats*

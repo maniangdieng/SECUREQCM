@@ -12,6 +12,7 @@
 - [ ] Tester Windows et macOS avec les versions SEB retenues.
 - [ ] Implémenter et vérifier l'authentification SEB réelle (BEK/CK) avant d'exiger SEB.
 - [ ] Définir une procédure humaine pour les coupures, pannes et contestations.
-- [ ] Faire un test de charge avec l'effectif maximal prévu.
+- [ ] Faire un test de charge avec l'effectif maximal prévu (`loadtest/README.md`), noter le résultat dans `docs/TEST_DE_CHARGE.md`.
+- [ ] Régler `GUNICORN_WORKERS` (≈ 2 × cœurs + 1).
 
 Ne pas utiliser ce MVP tel quel pour un examen à fort enjeu avant audit de sécurité et validation SEB.
