@@ -16,6 +16,7 @@
 </div>
 
 <div id="examContent" hidden>
+  <div class="watermark" id="watermark" data-text="{{ user.get_full_name|default:user.username }} · {{ user.profile.student_number|default:'sans matricule' }}&#10;{{ attempt.exam.title }}" aria-hidden="true"></div>
   <div class="exam-top">
     <div>
       <div class="muted small">{{ attempt.exam.title }}</div>
@@ -257,6 +258,7 @@
       started = true;
       $('fullscreenGate').hidden = true;
       $('examContent').hidden = false;
+      setTimeout(() => { size = windowSize(); }, 1000);
     } else {
       $('enterFullscreen').textContent = 'Plein écran refusé : autorisez-le puis réessayez';
     }
@@ -273,6 +275,35 @@
     if (document.hidden && started && !finished && !hidden) { hidden = true; reportViolation('TAB_SWITCH'); }
     if (!document.hidden) hidden = false;
   });
+
+  // ---------------------------------------------------------------- Dissuasion (issue #24)
+  // Ces mesures découragent la fraude sans pouvoir l'empêcher : tout se passe dans le navigateur.
+  function logInfo(type) {  // journalisé, jamais compté : n'emprunte pas le verrou `reporting`
+    if (!started || finished) return;
+    const data = new FormData(securityForm);
+    data.set('event', type);
+    fetch(securityForm.action, {method: 'POST', body: data, credentials: 'same-origin', keepalive: true}).catch(() => {});
+  }
+  window.addEventListener('blur', () => logInfo('FOCUS_LOSS'));
+  const windowSize = () => window.innerWidth + 'x' + window.innerHeight;
+  let size = null, resizeTimer;  // taille de référence, prise une fois le plein écran installé
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (size === null || size === windowSize()) return;
+      size = windowSize();
+      logInfo('WINDOW_RESIZE');
+    }, 500);
+  });
+  // button 2 = clic droit ; le menu ouvert au clavier reste disponible.
+  $('examContent').addEventListener('contextmenu', (event) => { if (event.button === 2) event.preventDefault(); });
+  const marks = Array.from({length: 80}, () => $('watermark').appendChild(document.createElement('span')));
+  function stampWatermark() {
+    const text = $('watermark').dataset.text + '\n' + new Date().toLocaleString('fr-FR');
+    for (const mark of marks) mark.textContent = text;
+  }
+  stampWatermark();
+  setInterval(stampWatermark, 1000);
 
   // ---------------------------------------------------------------- Chronomètres
   setInterval(() => {

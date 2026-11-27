@@ -60,7 +60,31 @@ class AttemptAdmin(admin.ModelAdmin):
     search_fields = ("student__username", "exam__title")
 
 
-admin.site.register([ClassroomMembership, Option, Response, SecurityEvent, ExamEnrollment])
+admin.site.register([ClassroomMembership, Option, ExamEnrollment])
+
+
+class ReadOnlyAdmin(admin.ModelAdmin):
+    """Consultation seule, y compris pour le super-administrateur : traces d'examen et journaux."""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SecurityEvent)
+class SecurityEventAdmin(ReadOnlyAdmin):
+    list_display = ("created_at", "attempt", "event_type", "details")
+    list_filter = ("event_type",)
+    search_fields = ("attempt__student__username", "attempt__exam__title")
+    list_select_related = ("attempt__student", "attempt__exam")
+
+
+admin.site.register(Response, ReadOnlyAdmin)
 
 
 admin.site.unregister(User)
@@ -86,17 +110,7 @@ class UserAdmin(BaseUserAdmin):
 
 
 @admin.register(AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
-    """Consultation seule, y compris pour le super-administrateur."""
+class AuditLogAdmin(ReadOnlyAdmin):
     list_display = ("created_at", "actor_name", "action", "target", "details")
     list_filter = ("action",)
     search_fields = ("actor_name", "target", "details")
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
