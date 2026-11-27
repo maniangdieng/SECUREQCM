@@ -23,5 +23,8 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Résultats du test de charge
+loadtest/resultats*
+
 # Paquets Python téléchargés (ne jamais versionner)
 *.whl

@@ -1,0 +1,2 @@
+# Uniquement pour le test de charge (pas nécessaire sur le serveur d'examen).
+locust>=2.31

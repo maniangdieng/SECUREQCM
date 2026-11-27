@@ -17,7 +17,7 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
-    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn secureqcm.wsgi:application --bind 0.0.0.0:8000"
+    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn secureqcm.wsgi:application --bind 0.0.0.0:8000 --workers $${GUNICORN_WORKERS:-3}"
     ports:
       - "8000:8000"
     depends_on:

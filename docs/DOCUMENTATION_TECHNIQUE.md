@@ -104,7 +104,8 @@ Variables d'environnement (voir [`.env.example`](../.env.example)) :
 | `POSTGRES_HOST` | présent : PostgreSQL ; absent : SQLite | absent |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` | connexion PostgreSQL | port `5432` |
 | `COMPOSE_FILE`, `SITE_ADDRESS`, `HTTPS_PORT`, `HTTP_PORT` | HTTPS, voir [HTTPS.md](HTTPS.md) | |
-| `GUNICORN_CMD_ARGS` | options Gunicorn, la ligne de commande l'emporte | |
+| `GUNICORN_WORKERS` | nombre de processus Gunicorn (≈ 2 × cœurs + 1) | `3` |
+| `GUNICORN_CMD_ARGS` | autres options Gunicorn ; `--workers` y est ignoré (la commande l'emporte) | |
 
 Après fusion de la PR #31, pour l'envoi d'e-mails : `DJANGO_EMAIL_BACKEND` (par défaut la console, qui écrit le lien
 de réinitialisation dans les journaux : **développement uniquement**), `DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT`,
