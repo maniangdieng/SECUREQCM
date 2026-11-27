@@ -56,7 +56,10 @@ def join_exam_by_code(request):
         messages.error(request, "Code d'examen invalide ou examen non disponible.")
         return back
     profile = request.user.profile
-    if exam.audience_mode == "LEVEL":
+    individual = ExamEnrollment.objects.filter(exam=exam, student=request.user, source="LIST").first()
+    if individual:
+        enrollment = individual
+    elif exam.audience_mode == "LEVEL":
         if not exam.target_level or not profile.study_level or profile.study_level != exam.target_level:
             messages.error(request, "Cet examen n'est pas destiné à votre niveau d'études.")
             return back
@@ -73,7 +76,7 @@ def join_exam_by_code(request):
             return back
     if not enrollment.code_verified:
         enrollment.code_verified = True
-        if exam.audience_mode == "LEVEL":
+        if exam.audience_mode == "LEVEL" and not individual:
             enrollment.source = "CODE"
         enrollment.save(update_fields=["code_verified", "source"])
     messages.success(request, f"Code validé. Vous pouvez accéder à : {exam.title}.")

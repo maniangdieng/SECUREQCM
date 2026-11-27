@@ -6,7 +6,8 @@
 - [ ] Déployer derrière HTTPS (obligatoire).
 - [ ] Configurer les cookies sécurisés et les paramètres proxy HTTPS dans Django.
 - [ ] Mettre en place sauvegardes PostgreSQL et restauration testée.
-- [ ] Créer les comptes et affecter explicitement les rôles dans `/admin/`.
+- [ ] Créer les comptes et affecter explicitement les rôles (page « Comptes » de l'application).
+- [ ] Fixer la durée de session (`DJANGO_SESSION_HOURS`, 8 par défaut, 4 au minimum).
 - [ ] Tester les parcours enseignant et étudiant.
 - [ ] Tester les échéances côté serveur et les tentatives simultanées.
 - [ ] Planifier chaque minute `python manage.py close_expired_attempts` (cron : `* * * * *`) pour clôturer les tentatives des étudiants qui ne reviennent pas.

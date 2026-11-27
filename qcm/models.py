@@ -231,3 +231,22 @@ class SecurityEvent(models.Model):
     event_type = models.CharField(max_length=60)
     details = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AuditLog(models.Model):
+    """Journal des opérations administratives (cahier §13) : écrit par l'application, jamais modifié."""
+    actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+                              verbose_name="auteur (compte)")
+    actor_name = models.CharField("auteur", max_length=150)  # conservé si le compte est supprimé
+    action = models.CharField(max_length=60)
+    target = models.CharField("cible", max_length=300)
+    details = models.CharField("détails", max_length=500, blank=True)
+    created_at = models.DateTimeField("date", auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "opération journalisée"
+        verbose_name_plural = "journal des opérations"
+
+    def __str__(self):
+        return f"{self.actor_name} · {self.action} · {self.target}"

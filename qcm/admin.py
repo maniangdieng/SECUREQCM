@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (Profile, Classroom, ClassroomMembership, Exam, ExamEnrollment, Question, Option,
-                     Attempt, Response, SecurityEvent)
+                     Attempt, Response, SecurityEvent, AuditLog)
 
 
 class OptionInline(admin.TabularInline):
@@ -83,3 +83,20 @@ class UserAdmin(BaseUserAdmin):
                 "l'historique des notes. Désactivez plutôt le compte (Administration → Comptes → Désactiver).",
             )
         return super().delete_view(request, object_id, extra_context)
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """Consultation seule, y compris pour le super-administrateur."""
+    list_display = ("created_at", "actor_name", "action", "target", "details")
+    list_filter = ("action",)
+    search_fields = ("actor_name", "target", "details")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

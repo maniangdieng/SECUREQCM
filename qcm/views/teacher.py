@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
@@ -13,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
 from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
-from ..services import close_expired_attempts, enroll_audience
+from ..services import audit, close_expired_attempts, enroll_audience
 from .common import redirect_back
 
 MAX_OPTIONS = 6
@@ -157,6 +158,7 @@ def update_exam_settings(request, exam_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def close_exam(request, exam_id):
     """Clôture : plus de nouvelle tentative ; celles en cours se terminent dans leur temps."""
     exam = get_object_or_404(Exam, pk=exam_id)
@@ -165,6 +167,7 @@ def close_exam(request, exam_id):
     if not exam.published or exam.is_archived:
         messages.error(request, "Seul un examen publié et non archivé peut être clôturé.")
     elif Exam.objects.filter(pk=exam.pk, closed_at__isnull=True).update(closed_at=timezone.now()):
+        audit(request.user, "Examen clôturé", exam)
         messages.success(request, f"L'examen « {exam.title} » est clôturé.")
     else:
         messages.info(request, "Cet examen est déjà clôturé.")
@@ -193,7 +196,9 @@ def archive_exam(request, exam_id):
         exam.is_archived = True
         exam.archived_at = timezone.now()
         exam.archived_by = request.user
-        exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
+        with transaction.atomic():
+            exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
+            audit(request.user, "Examen archivé", exam)
         messages.success(request, f"L’examen « {exam.title} » a été archivé. Son historique est conservé.")
     return back
 
@@ -214,6 +219,7 @@ def delete_exam(request, exam_id):
     with transaction.atomic():
         # Question et Option sont liées à Exam par CASCADE. La vérification des
         # tentatives protège les réponses et les résultats (Attempt.exam est en PROTECT).
+        audit(request.user, "Examen supprimé", exam)
         exam.delete()
     messages.success(request, f"L'examen « {title} » et ses questions/propositions ont été supprimés.")
     if classroom_id:
@@ -334,6 +340,7 @@ def publish_exam(request, exam_id):
         exam.published = True
         exam.save(update_fields=["published"])
         enroll_audience(exam)
+        audit(request.user, "Examen publié", exam)
     messages.success(request, f"Examen publié. Communiquez le code d'accès {exam.access_code} aux étudiants concernés.")
     return redirect("teacher_exam", exam_id=exam.id)
 
@@ -361,12 +368,12 @@ def import_exam_students(request, exam_id):
         key = next((h for h in reader.fieldnames if h.strip().lower() in ("matricule", "student_number", "numero_etudiant", "numéro étudiant")), None)
         if not key:
             raise ValueError("Ajoutez une colonne nommée matricule.")
-        added = 0
+        added = removed = 0
         unknown = []
         with transaction.atomic():
             if exam.audience_mode != "LIST":
                 # Passage en mode liste : seuls les étudiants du fichier restent autorisés.
-                exam.enrollments.all().delete()
+                removed = exam.enrollments.all().delete()[0]
             exam.audience_mode = "LIST"
             exam.save(update_fields=["audience_mode"])
             for row in reader:
@@ -379,9 +386,43 @@ def import_exam_students(request, exam_id):
                     continue
                 _, created = ExamEnrollment.objects.get_or_create(exam=exam, student=profile.user, defaults={"source": "LIST"})
                 added += int(created)
+            audit(request.user, "Liste d'étudiants importée", exam, f"{added} ajouté(s), {removed} retiré(s)")
         messages.success(request, f"Import terminé : {added} étudiant(s) ajouté(s).")
         if unknown:
             messages.warning(request, "Matricules non reconnus : " + ", ".join(unknown[:20]))
     except (UnicodeDecodeError, ValueError, csv.Error) as exc:
         messages.error(request, str(exc))
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def add_exam_student(request, exam_id):
+    """Inscription d'un seul étudiant par matricule ; les autres inscrits ne sont pas touchés."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    number = request.POST.get("student_number", "").strip()
+    # Le matricule n'est pas unique en base : deux résultats suffisent à détecter l'ambiguïté.
+    students = list(User.objects.filter(profile__student_number=number, profile__role="STUDENT")[:2]) if number else []
+    if exam.is_archived or exam.closed_at:
+        messages.error(request, "Cet examen est clôturé ou archivé : plus aucune inscription n'est possible.")
+    elif not students:
+        messages.error(request, "Aucun compte étudiant ne porte ce matricule.")
+    elif len(students) > 1:
+        messages.error(request, "Plusieurs comptes portent ce matricule : corrigez-les avant d'inscrire l'étudiant.")
+    else:
+        student = students[0]
+        name = student.get_full_name() or student.username
+        enrollment, created = ExamEnrollment.objects.get_or_create(exam=exam, student=student,
+                                                                   defaults={"source": "LIST"})
+        if not created and enrollment.source == "LIST":
+            messages.info(request, f"{name} est déjà inscrit à cet examen.")
+        else:
+            if not created:
+                enrollment.source = "LIST"
+                enrollment.save(update_fields=["source"])
+            audit(request.user, "Étudiant inscrit à un examen", exam, f"{student.username} (matricule {number})")
+            messages.success(request, f"Inscription enregistrée : {name}.")
     return redirect("teacher_exam", exam_id=exam.id)

@@ -113,7 +113,7 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin) : aujourd'hui un examen publié reste ouvert indéfiniment.
 - [ ] **P2 : action enseignant « autoriser une reprise »** après une clôture de sécurité contestée (avec trace dans le journal), puisque la clôture est définitive par conception.
 - [ ] **P2 : supprimer un enseignant** qui possède des examens avec tentatives provoque une erreur (`Exam.teacher` en CASCADE mais `Attempt.exam` en PROTECT). Décider : `PROTECT` ou transfert des examens à un autre enseignant.
-- [ ] **P3 : journal d'audit** des actions admin (changement de rôle, suppression, archivage).
+- [x] **P3 : journal d'audit** des opérations administratives (comptes, rôles, examens, inscriptions, classes), en lecture seule.
 
 ### 3.2 Fonctionnalités façon Google Classroom
 - [ ] **P2 : flux de la classe (annonces)** : l'enseignant publie un message et les étudiants le voient dans la classe.
@@ -140,7 +140,9 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 
 ### 3.5 Administration
 - [ ] **P2 : création de comptes en masse** par l'admin (import CSV nom, prénom, matricule, niveau).
-- [ ] **P2 : créer un compte enseignant depuis l'application** (aujourd'hui il faut passer par `/admin/` ou promouvoir un compte existant).
+- [x] **P2 : créer un compte depuis l'application** (page « Comptes » ; aucun compte super-administrateur ne peut être créé).
+- [x] **P2 : inscrire un étudiant à un examen** par son matricule, sans retirer les autres inscrits.
+- [x] **P2 : durée de session réglable** (`DJANGO_SESSION_HOURS`, 8 heures d'inactivité par défaut).
 - [ ] **P3 : tableau de bord admin** avec activité récente et examens en cours en temps réel.
 
 ### 3.6 Qualité et outillage de l'équipe

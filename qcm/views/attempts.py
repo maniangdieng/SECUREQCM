@@ -33,7 +33,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role, can_authorize_resume
-from ..services import (RESUME_EVENT, VIOLATION_LABELS, build_grading, exam_max_score, grade_summary,
+from ..services import (RESUME_EVENT, VIOLATION_LABELS, audit, build_grading, exam_max_score, grade_summary,
                         locked_attempts, question_time_seconds, advance, close_attempt, apply_deadlines)
 
 SECURITY_EVENTS = set(VIOLATION_LABELS)
@@ -324,6 +324,7 @@ def authorize_resume(request, attempt_id):
     attempt.question_started_at = now
     attempt.question_deadline = min(attempt.global_deadline, now + question_left)
     attempt.save(update_fields=["status", "ended_at", "global_deadline", "question_started_at", "question_deadline"])
+    audit(request.user, "Reprise autorisée", attempt, reason)
     SecurityEvent.objects.create(attempt=attempt, event_type=RESUME_EVENT, details={
         "by_id": request.user.id,
         "by": request.user.get_full_name() or request.user.username,
