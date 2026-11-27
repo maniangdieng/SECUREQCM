@@ -4,7 +4,7 @@ et notation.
 Garder ici ce qui n'est pas spécifique à une page facilite les tests et le travail en équipe.
 """
 from collections import Counter
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -12,6 +12,11 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Question, Response
+
+
+# Événements de sécurité : seules ces violations sont comptées.
+VIOLATION_LABELS = {"TAB_SWITCH": "Changement d'onglet", "FULLSCREEN_EXIT": "Sortie du plein écran"}
+RESUME_EVENT = "RESUME_AUTHORIZED"
 
 
 # --------------------------------------------------------------------------- #
@@ -210,20 +215,44 @@ def grade_summary(attempt, grading=None):
         "max_score": max_score,
         "percent": percent.quantize(Decimal("0.1")),
         "final_grade": final_grade.quantize(Decimal("0.01")),
+        **answer_counts(attempt, grading),
     }
 
 
-RESULT_HEADER = ["Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score", "Motif de clôture",
-                 "Début", "Fin", "Score obtenu", "Score maximal", "Pourcentage (%)", "Note finale (/20)", "Violations"]
+def answer_counts(attempt, grading):
+    """Réponses justes, fausses (une réponse partielle en fait partie) et sans réponse d'une copie."""
+    selected = {str(r.question_id): set(r.selected_option_ids) for r in attempt.responses.all()}
+    counts = {"right_count": 0, "wrong_count": 0, "blank_count": 0}
+    for question_id, graded in grading["questions"].items():
+        chosen = selected.get(question_id)
+        if not chosen:
+            counts["blank_count"] += 1
+        elif graded["correct"] and chosen == set(graded["correct"]):
+            counts["right_count"] += 1
+        else:
+            counts["wrong_count"] += 1
+    return counts
+
+
+# --------------------------------------------------------------------------- #
+# Résultats d'un examen
+# --------------------------------------------------------------------------- #
+# Copies closes qui comptent dans les statistiques (une tentative interrompue est remplacée).
+GRADED_STATUSES = [Attempt.COMPLETED, Attempt.TIME_EXPIRED, Attempt.TERMINATED_SECURITY]
+PASS_MARK = Decimal("10")  # note sur 20 à partir de laquelle une copie est réussie
+
+RESULT_HEADER = ["Identifiant examen", "Examen", "Identifiant", "Matricule", "Nom", "Prénom", "Statut",
+                 "Nature du score", "Motif de clôture", "Début", "Fin", "Durée effective (min)", "Score obtenu",
+                 "Score maximal", "Pourcentage (%)", "Note finale (/20)", "Réponses justes", "Réponses fausses",
+                 "Sans réponse", "Violations", "Détail des violations"]
 
 
 def exam_attempts(exam):
     """Tentatives d'un examen, avec de quoi les noter sans requête supplémentaire par copie."""
     # Seules les vraies violations comptent (pas les doublons ignorés ni les reprises).
-    violations = Count("security_events",
-                       filter=Q(security_events__event_type__in=["TAB_SWITCH", "FULLSCREEN_EXIT"]))
+    violations = Count("security_events", filter=Q(security_events__event_type__in=list(VIOLATION_LABELS)))
     return (Attempt.objects.filter(exam=exam).select_related("exam", "student", "student__profile")
-            .prefetch_related("responses").annotate(violation_count=violations))
+            .prefetch_related("responses", "security_events").annotate(violation_count=violations))
 
 
 def graded_attempts(exam, attempts):
@@ -235,14 +264,54 @@ def graded_attempts(exam, attempts):
         yield attempt, grade_summary(attempt, attempt.grading_snapshot or fallback)
 
 
+def effective_minutes(attempt):
+    """Temps de composition d'une copie close, sans l'interruption entre une clôture et sa reprise."""
+    if not attempt.ended_at:
+        return None
+    spent = attempt.ended_at - attempt.started_at
+    for event in attempt.security_events.all():
+        if event.event_type == RESUME_EVENT and "closed_at" in event.details:
+            spent -= event.created_at - datetime.fromisoformat(event.details["closed_at"])
+    return (Decimal(max(int(spent.total_seconds()), 0)) / 60).quantize(Decimal("0.01"))
+
+
+def violation_detail(attempt):
+    counts = Counter(event.event_type for event in attempt.security_events.all())
+    return " ; ".join(f"{label} : {counts[kind]}" for kind, label in VIOLATION_LABELS.items() if counts[kind])
+
+
+def graded_rows(exam, *ordering):
+    """Une ligne par copie : tentative, notes, durée effective et détail des violations."""
+    for attempt, grade in graded_attempts(exam, exam_attempts(exam).order_by(*ordering)):
+        yield {"attempt": attempt, **grade, "minutes": effective_minutes(attempt),
+               "violation_detail": violation_detail(attempt)}
+
+
+def results_summary(rows):
+    """Effectifs par statut, moyenne et taux de réussite des copies de graded_rows()."""
+    counts = Counter(row["attempt"].status for row in rows)
+    grades = [row["final_grade"] for row in rows if row["attempt"].status in GRADED_STATUSES]
+    return {
+        # « Interrompue » est rare (posée par l'administration) : affichée seulement s'il y en a.
+        "status_counts": [(label, counts[status]) for status, label in Attempt.STATUS_CHOICES
+                          if counts[status] or status != Attempt.INTERRUPTED],
+        "graded_count": len(grades),
+        "average": sum(grades) / len(grades) if grades else None,
+        "success_rate": round(100 * sum(g >= PASS_MARK for g in grades) / len(grades), 1) if grades else None,
+    }
+
+
 def result_rows(exam):
     """Lignes d'export (colonnes de RESULT_HEADER) : texte, nombres et dates locales, communes à tous les formats."""
     def local(moment):
         return timezone.localtime(moment).replace(tzinfo=None) if moment else None
 
-    for attempt, g in graded_attempts(exam, exam_attempts(exam).order_by("student__username", "-started_at")):
+    for row in graded_rows(exam, "student__username", "-started_at"):
+        attempt = row["attempt"]
         profile = getattr(attempt.student, "profile", None)
         yield [
+            exam.id,
+            exam.title,
             attempt.student.username,
             profile.student_number if profile else "",
             attempt.student.last_name,
@@ -252,11 +321,16 @@ def result_rows(exam):
             "Violation des règles" if attempt.status == Attempt.TERMINATED_SECURITY else attempt.get_status_display(),
             local(attempt.started_at),
             local(attempt.ended_at),
-            g["score"].quantize(Decimal("0.01")),
-            g["max_score"].quantize(Decimal("0.01")),
-            g["percent"],
-            g["final_grade"],
+            row["minutes"],
+            row["score"].quantize(Decimal("0.01")),
+            row["max_score"].quantize(Decimal("0.01")),
+            row["percent"],
+            row["final_grade"],
+            row["right_count"],
+            row["wrong_count"],
+            row["blank_count"],
             attempt.violation_count,
+            row["violation_detail"],
         ]
 
 
@@ -272,7 +346,7 @@ def question_stats(exam):
     (une tentative interrompue est remplacée : elle ne compte pas). Réussite = réponse exactement
     juste selon le barème figé de la copie, même en notation partielle.
     """
-    done = exam.attempts.filter(status__in=[Attempt.COMPLETED, Attempt.TIME_EXPIRED, Attempt.TERMINATED_SECURITY])
+    done = exam.attempts.filter(status__in=GRADED_STATUSES)
     snapshots = dict(done.values_list("pk", "grading_snapshot"))
     if not snapshots:
         return []
