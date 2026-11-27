@@ -1,0 +1,10 @@
+<div class="grid grid-stats" style="margin-bottom:20px">
+  <div class="stat"><div class="value">{{ enrollment_count }}</div><div class="label">Étudiants affectés</div></div>
+  <div class="stat"><div class="value">{{ rows|length }}</div><div class="label">Copies</div></div>
+  {% for label, count in summary.status_counts %}
+  <div class="stat"><div class="value">{{ count }}</div><div class="label">{{ label }}</div></div>
+  {% endfor %}
+  <div class="stat"><div class="value">{% if summary.average is not None %}{{ summary.average|floatformat:2 }}{% else %}—{% endif %}</div><div class="label">Moyenne /20</div></div>
+  <div class="stat"><div class="value">{% if summary.success_rate is not None %}{{ summary.success_rate|floatformat }}&nbsp;%{% else %}—{% endif %}</div><div class="label">Taux de réussite (≥ {{ pass_mark }}/20)</div></div>
+</div>
+<p class="small muted">Moyenne et taux de réussite portent sur les {{ summary.graded_count }} copie{{ summary.graded_count|pluralize }} close{{ summary.graded_count|pluralize }} (terminées, temps écoulé, clôtures de sécurité).</p>

@@ -71,10 +71,10 @@ class ClassroomTests(TestCase):
         exam = make_class_exam(self.teacher, classroom)
         self._publish(exam)
         self.client.force_login(self.student)
-        self.client.post(f"/student/exams/{exam.id}/start/")
+        self.client.post(f"/student/exams/{exam.id}/start/", {"confirm": "on"})
         self.assertFalse(Attempt.objects.filter(exam=exam).exists())
         self.client.post("/student/join-exam/", {"access_code": exam.access_code, "exam_id": exam.id})
-        self.client.post(f"/student/exams/{exam.id}/start/")
+        self.client.post(f"/student/exams/{exam.id}/start/", {"confirm": "on"})
         self.assertTrue(Attempt.objects.filter(exam=exam, student=self.student).exists())
 
     def test_non_member_cannot_join_class_exam_by_code(self):
@@ -226,11 +226,11 @@ class ExamFlowTests(TestCase):
         self.client.post(f"/teacher/exams/{exam.id}/publish/")
         self.client.force_login(student)
         self.client.post("/student/join-exam/", {"access_code": exam.access_code, "exam_id": exam.id})
-        self.client.post(f"/student/exams/{exam.id}/start/")
+        self.client.post(f"/student/exams/{exam.id}/start/", {"confirm": "on"})
         attempt = Attempt.objects.get(student=student)
         self.assertEqual(self.client.get(f"/attempt/{attempt.id}/").status_code, 200)
         good = Option.objects.get(is_correct=True)
-        self.client.post(f"/attempt/{attempt.id}/answer/", {"option": [good.id], "question_id": good.question_id})
+        self.client.post(f"/attempt/{attempt.id}/answer.json", {"option": [good.id], "question_id": good.question_id})
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, Attempt.COMPLETED)
         self.assertContains(self.client.get(f"/attempt/{attempt.id}/"), "Copie remise")
@@ -251,9 +251,10 @@ class ExamFlowTests(TestCase):
         Option.objects.create(question=q, text="B")
         ExamEnrollment.objects.create(exam=exam, student=student, code_verified=True)
         self.client.force_login(student)
-        self.client.post(f"/student/exams/{exam.id}/start/")
+        self.client.post(f"/student/exams/{exam.id}/start/", {"confirm": "on"})
         attempt = Attempt.objects.get()
-        self.assertEqual(self.client.post(f"/attempt/{attempt.id}/answer/", {"option": ["abc"]}).status_code, 400)
+        data = {"question_id": q.id, "option": ["abc"]}
+        self.assertEqual(self.client.post(f"/attempt/{attempt.id}/answer.json", data).status_code, 400)
 
 
 class SecurityHardeningTests(TestCase):

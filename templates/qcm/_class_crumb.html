@@ -1,0 +1,2 @@
+<span class="crumb-sep" aria-hidden="true">›</span>
+<a class="crumb" href="{% url 'classroom_detail' classroom.id %}"><span class="crumb-name">{{ classroom.name }}</span>{% if classroom.section %}<span class="crumb-sub">{{ classroom.section }}</span>{% endif %}</a>

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Consignes – {{ exam.title }}{% endblock %}
+{% block main_class %}page narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ exam.title }}</h1>
+  {% if exam.description %}<p class="muted">{{ exam.description }}</p>{% endif %}
+  <p><strong>{{ exam.duration_minutes }} minutes</strong> · <strong>{{ question_count }} question{{ question_count|pluralize }}</strong> · {{ max_score }} points, note ramenée sur 20.</p>
+  <p><strong>Une seule tentative</strong> : une fois démarré, l'examen ne peut pas être recommencé et le temps continue de s'écouler même si vous fermez la page. Le temps est réparti à parts égales entre les questions.</p>
+
+  <h2>Notation</h2>
+  <ul class="rules">
+    <li><strong>Choix unique</strong> : tous les points pour la bonne réponse, zéro sinon.</li>
+    <li><strong>{{ scoring_rule }}</strong></li>
+    <li>Une question sans réponse vaut zéro point.</li>
+  </ul>
+
+  <h2>Surveillance</h2>
+  <ul class="rules">{% include "qcm/_exam_rules.html" %}</ul>
+
+  {% if confirmation_missing %}<div class="alert error">Cochez la case pour confirmer avant de commencer.</div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label class="check"><input type="checkbox" name="confirm" required> J'ai lu les consignes et je veux démarrer le chronomètre.</label>
+    <div class="spread" style="margin-top:16px">
+      <a class="btn ghost" href="{% url 'student_dashboard' %}">Retour</a>
+      <button class="btn lg" type="submit">Commencer l'examen</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

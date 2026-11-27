@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import HttpResponseForbidden
@@ -13,9 +14,9 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
-from ..permissions import is_teacher_or_admin, can_manage_exam, can_manage_classroom
-from ..services import enroll_audience
-from .common import redirect_back
+from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
+from ..services import audit, close_expired_attempts, enroll_audience
+from .common import class_tab, redirect_back
 
 MAX_OPTIONS = 6
 
@@ -35,10 +36,10 @@ def teacher_dashboard(request):
                   .select_related("owner")
                   .annotate(student_count=Count("memberships", filter=Q(memberships__role="STUDENT"), distinct=True),
                             exam_count=Count("exams", distinct=True)))
-    standalone_exams = (Exam.objects.filter(teacher=request.user, classroom__isnull=True, is_archived=False)
+    standalone_exams = (Exam.objects.filter(teacher=request.user, classroom__isnull=True)
                         .annotate(question_count=Count("questions", distinct=True),
                                   attempt_count=Count("attempts", distinct=True))
-                        .order_by("-created_at"))
+                        .order_by("is_archived", "-created_at"))
     return render(request, "qcm/teacher_dashboard.html", {
         "active_classrooms": [c for c in classrooms if not c.is_archived],
         "archived_classrooms": [c for c in classrooms if c.is_archived],
@@ -46,6 +47,21 @@ def teacher_dashboard(request):
         "levels": Profile.LEVEL_CHOICES,
         "colors": Classroom.COLOR_CHOICES,
     })
+
+
+@login_required
+def teacher_todo(request):
+    """Page « À examiner » : les examens publiés des classes de l'enseignant, avec copies rendues / attribuées."""
+    if not is_teacher_or_admin(request.user):
+        return redirect("student_todo")
+    exams = (Exam.objects.filter(Q(classroom__in=manageable_classrooms(request.user)) | Q(teacher=request.user),
+                                 published=True, is_archived=False)
+             .distinct().select_related("classroom")
+             .annotate(assigned_count=Count("enrollments", distinct=True),
+                       turned_in_count=Count("attempts__student", distinct=True,
+                                             filter=~Q(attempts__status=Attempt.IN_PROGRESS)))
+             .order_by("-created_at"))
+    return render(request, "qcm/teacher_todo.html", {"exams": exams})
 
 
 def _parse_duration(value):
@@ -56,24 +72,35 @@ def _parse_duration(value):
     return duration if 1 <= duration <= 180 else None
 
 
+ORDERS = {"random": True, "fixed": False}
+
+
+def _parse_exam_settings(data):
+    """Règle de notation et ordre ; un champ absent prend sa valeur par défaut. None si une valeur est inconnue."""
+    rule = data.get("multiple_scoring", Exam.PARTIAL)
+    questions = data.get("question_order", "random")
+    answers = data.get("answer_order", "random")
+    if rule not in dict(Exam.SCORING_CHOICES) or questions not in ORDERS or answers not in ORDERS:
+        return None
+    return {"multiple_scoring": rule, "shuffle_questions": ORDERS[questions], "shuffle_answers": ORDERS[answers]}
+
+
 def _parse_exam_window(request):
+    """Ouverture / fermeture facultatives (#9). Renvoie (opens_at, closes_at, erreur)."""
     values = []
-    for field in ("opens_at", "closes_at"):
+    for field, label in (("opens_at", "d'ouverture"), ("closes_at", "de fermeture")):
         raw = request.POST.get(field, "").strip()
         if not raw:
             values.append(None)
             continue
         try:
             parsed = parse_datetime(raw)
-        except (TypeError, ValueError):
+            if parsed is not None and timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        except (TypeError, ValueError, OverflowError):
             parsed = None
         if parsed is None:
-            return None, None, "La date d'ouverture est invalide." if field == "opens_at" else "La date de fermeture est invalide."
-        try:
-            if timezone.is_naive(parsed):
-                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
-        except (ValueError, OverflowError):
-            return None, None, "La date d'ouverture est invalide." if field == "opens_at" else "La date de fermeture est invalide."
+            return None, None, f"La date {label} est invalide."
         values.append(parsed)
     opens_at, closes_at = values
     if opens_at and closes_at and opens_at >= closes_at:
@@ -82,6 +109,7 @@ def _parse_exam_window(request):
 
 
 def _question_payload(request):
+    """Énoncé, type, barème et propositions envoyés ; mêmes règles à l'ajout et à la modification (#10)."""
     text = request.POST.get("text", "").strip()
     kind = request.POST.get("kind", Question.SINGLE)
     try:
@@ -92,33 +120,42 @@ def _question_payload(request):
     correct = set(request.POST.getlist("correct"))
     correct_count = sum(1 for i, _ in options if str(i) in correct)
 
-    points_valid = points is not None and points.is_finite() and Decimal("0.1") <= points <= Decimal("100")
     error = None
     if not text:
         error = "L'énoncé de la question est obligatoire."
     elif kind not in dict(Question.TYPE_CHOICES):
         error = "Type de question invalide."
-    elif not points_valid:
+    elif points is None or not points.is_finite() or not (Decimal("0.1") <= points <= Decimal("100")):
         error = "Le barème doit être un nombre entre 0,1 et 100."
     elif len(options) < 2:
         error = "Saisissez au moins deux propositions."
     elif correct_count == 0:
         error = "Sélectionnez au moins une bonne réponse."
     elif kind == Question.SINGLE and correct_count > 1:
+        # Une question à réponse unique s'affiche avec des boutons radio : avec deux
+        # bonnes réponses, l'étudiant ne pourrait jamais obtenir les points.
         error = "Une question à réponse unique doit avoir exactement une bonne réponse. Choisissez « Réponses multiples »."
     return {"text": text, "kind": kind, "points": points, "options": options, "correct": correct}, error
+
+
+def _questions_locked(exam):
+    """Règle 8 : questions figées dès la publication ou la première tentative. Renvoie un message ou None."""
+    if exam.published:
+        return "Examen déjà publié : les questions ne peuvent plus être modifiées."
+    if Attempt.objects.filter(exam=exam).exists():
+        return ("Modification impossible : cet examen possède déjà des tentatives. "
+                "Créez un nouveau brouillon pour modifier les questions.")
+    return None
 
 
 def _option_rows_from_post(request):
     texts = request.POST.getlist("option_text")[:MAX_OPTIONS]
     correct = set(request.POST.getlist("correct"))
-    return [{"text": texts[i] if i < len(texts) else "", "correct": str(i) in correct}
-            for i in range(MAX_OPTIONS)]
+    return [{"text": texts[i] if i < len(texts) else "", "correct": str(i) in correct} for i in range(MAX_OPTIONS)]
 
 
 def _option_rows_from_question(question):
-    rows = [{"text": option.text, "correct": option.is_correct}
-            for option in question.options.order_by("position", "id")[:MAX_OPTIONS]]
+    rows = [{"text": o.text, "correct": o.is_correct} for o in question.options.order_by("position", "id")[:MAX_OPTIONS]]
     rows.extend({"text": "", "correct": False} for _ in range(MAX_OPTIONS - len(rows)))
     return rows
 
@@ -134,12 +171,12 @@ def create_exam(request):
         classroom = get_object_or_404(Classroom, pk=classroom_id) if classroom_id.isdigit() else None
         if classroom is None or not can_manage_classroom(request.user, classroom):
             return HttpResponseForbidden("Vous ne gérez pas cette classe.")
-    fallback = ("classroom_detail", {"classroom_id": classroom.id}) if classroom else ("teacher_dashboard", {})
 
     level = request.POST.get("target_level", "").strip()
     audience_mode = request.POST.get("audience_mode", "CLASS" if classroom else "LEVEL").strip()
     duration = _parse_duration(request.POST.get("duration", 60))
     title = request.POST.get("title", "").strip()[:200]
+    settings = _parse_exam_settings(request.POST)
     opens_at, closes_at, window_error = _parse_exam_window(request)
 
     error = None
@@ -155,20 +192,22 @@ def create_exam(request):
         error = "Choisissez le niveau d'études ciblé."
     elif level and level not in dict(Profile.LEVEL_CHOICES):
         error = "Niveau d'études invalide."
+    elif settings is None:
+        error = "Réglage de notation ou d'ordre invalide."
     elif window_error:
         error = window_error
     if error:
         messages.error(request, error)
-        return redirect(fallback[0], **fallback[1])
+        return class_tab(classroom.id, "travaux") if classroom else redirect("teacher_dashboard")
 
     if not level and classroom:
         level = classroom.study_level
     exam = Exam.objects.create(
         title=title, description=request.POST.get("description", "").strip(),
         teacher=request.user, classroom=classroom, duration_minutes=duration,
-        target_level=level, audience_mode=audience_mode,
-        results_published=request.POST.get("results_published") == "on",
+        target_level=level, audience_mode=audience_mode, **settings,
         opens_at=opens_at, closes_at=closes_at,
+        results_published=request.POST.get("results_published") == "on",
     )
     messages.success(request, "Examen créé en brouillon. Ajoutez maintenant vos questions.")
     return redirect("teacher_exam", exam_id=exam.id)
@@ -196,7 +235,9 @@ def update_exam_duration(request, exam_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def update_exam_window(request, exam_id):
+    """Fenêtre d'ouverture (#9) : modifiable à tout moment ; une tentative en cours va au bout de sa durée."""
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
@@ -204,9 +245,12 @@ def update_exam_window(request, exam_id):
     if error:
         messages.error(request, error)
         return redirect("teacher_exam", exam_id=exam.id)
-    exam.opens_at = opens_at
-    exam.closes_at = closes_at
+    exam.opens_at, exam.closes_at = opens_at, closes_at
     exam.save(update_fields=["opens_at", "closes_at"])
+
+    def show(moment):
+        return f"{timezone.localtime(moment):%d/%m/%Y %H:%M}" if moment else "—"
+    audit(request.user, "Fenêtre d'ouverture modifiée", exam, f"{show(opens_at)} → {show(closes_at)}")
     messages.success(request, "Fenêtre d'ouverture de l'examen mise à jour.")
     return redirect("teacher_exam", exam_id=exam.id)
 
@@ -214,10 +258,10 @@ def update_exam_window(request, exam_id):
 @login_required
 @require_POST
 def duplicate_exam(request, exam_id):
+    """Copie en brouillon (#11) : questions et propositions, sans tentative, affectation ni fenêtre."""
     exam = get_object_or_404(Exam.objects.prefetch_related("questions__options"), pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
-
     classroom = None
     classroom_id = request.POST.get("classroom_id", "").strip()
     if classroom_id:
@@ -228,35 +272,91 @@ def duplicate_exam(request, exam_id):
         messages.error(request, "Choisissez la classe cible de la copie.")
         return redirect("teacher_exam", exam_id=exam.id)
 
-    audience_mode = "CLASS" if classroom else exam.audience_mode
-    target_level = (classroom.study_level or exam.target_level) if classroom else exam.target_level
     with transaction.atomic():
         copy = Exam.objects.create(
-            title=f"{exam.title} (copie)"[:200],
-            description=exam.description,
-            teacher=request.user,
-            classroom=classroom,
-            duration_minutes=exam.duration_minutes,
-            published=False,
-            results_published=False,
-            shuffle_questions=exam.shuffle_questions,
-            shuffle_answers=exam.shuffle_answers,
-            target_level=target_level,
-            audience_mode=audience_mode,
+            title=f"{exam.title} (copie)"[:200], description=exam.description,
+            teacher=request.user, classroom=classroom, duration_minutes=exam.duration_minutes,
+            shuffle_questions=exam.shuffle_questions, shuffle_answers=exam.shuffle_answers,
+            multiple_scoring=exam.multiple_scoring,
+            target_level=(classroom.study_level or exam.target_level) if classroom else exam.target_level,
+            audience_mode="CLASS" if classroom else exam.audience_mode,
         )
-        for new_position, question in enumerate(exam.questions.order_by("position", "id").all(), 1):
+        for position, question in enumerate(exam.questions.order_by("position", "id"), 1):
             new_question = Question.objects.create(
                 exam=copy, text=question.text, question_type=question.question_type,
-                duration_seconds=question.duration_seconds, points=question.points,
-                position=new_position,
-            )
-            for option in question.options.all():
-                Option.objects.create(
-                    question=new_question, text=option.text, is_correct=option.is_correct,
-                    position=option.position,
-                )
+                duration_seconds=question.duration_seconds, points=question.points, position=position)
+            Option.objects.bulk_create(
+                Option(question=new_question, text=o.text, is_correct=o.is_correct, position=o.position)
+                for o in question.options.all())
+        where = f" dans {classroom}" if classroom else ""
+        audit(request.user, "Examen dupliqué", exam, f"copie #{copy.pk}{where}")
     messages.success(request, f"Examen dupliqué en brouillon : « {copy.title} ».")
     return redirect("teacher_exam", exam_id=copy.id)
+
+
+@login_required
+@require_POST
+def update_exam_settings(request, exam_id):
+    """Règle de notation et ordre : modifiables uniquement tant qu'aucune tentative n'existe."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    settings = _parse_exam_settings(request.POST)
+    if Attempt.objects.filter(exam=exam).exists():
+        messages.error(request, "Ces réglages ne peuvent plus être modifiés : au moins une tentative d'étudiant existe déjà.")
+    elif settings is None:
+        messages.error(request, "Réglage de notation ou d'ordre invalide.")
+    else:
+        Exam.objects.filter(pk=exam.pk).update(**settings)
+        messages.success(request, "Réglages de notation et d'ordre enregistrés.")
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def close_exam(request, exam_id):
+    """Clôture : plus de nouvelle tentative ; celles en cours se terminent dans leur temps."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    if not exam.published or exam.is_archived:
+        messages.error(request, "Seul un examen publié et non archivé peut être clôturé.")
+    elif Exam.objects.filter(pk=exam.pk, closed_at__isnull=True).update(closed_at=timezone.now()):
+        audit(request.user, "Examen clôturé", exam)
+        messages.success(request, f"L'examen « {exam.title} » est clôturé.")
+    else:
+        messages.info(request, "Cet examen est déjà clôturé.")
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+def archive_exam(request, exam_id):
+    """Archivage par l'enseignant de l'examen ou l'administration ; l'historique est conservé."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    admin = is_admin(request.user)
+    back = redirect_back(request, "admin_dashboard") if admin else redirect("teacher_exam", exam_id=exam.id)
+    attempts = Attempt.objects.filter(exam=exam)
+    close_expired_attempts(attempts)
+    if not attempts.exists():
+        messages.error(request, "Cet examen ne possède aucune tentative : utilisez la suppression normale.")
+    elif exam.is_archived:
+        messages.info(request, "Cet examen est déjà archivé.")
+    elif not admin and attempts.filter(status=Attempt.IN_PROGRESS).exists():
+        # Archiver retire l'examen aux étudiants : un enseignant ne peut pas couper une épreuve en cours.
+        messages.error(request, "Des tentatives sont en cours : clôturez l'examen, puis archivez-le quand elles sont terminées.")
+    else:
+        exam.is_archived = True
+        exam.archived_at = timezone.now()
+        exam.archived_by = request.user
+        with transaction.atomic():
+            exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
+            audit(request.user, "Examen archivé", exam)
+        messages.success(request, f"L’examen « {exam.title} » a été archivé. Son historique est conservé.")
+    return back
 
 
 @login_required
@@ -275,10 +375,11 @@ def delete_exam(request, exam_id):
     with transaction.atomic():
         # Question et Option sont liées à Exam par CASCADE. La vérification des
         # tentatives protège les réponses et les résultats (Attempt.exam est en PROTECT).
+        audit(request.user, "Examen supprimé", exam)
         exam.delete()
     messages.success(request, f"L'examen « {title} » et ses questions/propositions ont été supprimés.")
     if classroom_id:
-        return redirect("classroom_detail", classroom_id=classroom_id)
+        return class_tab(classroom_id, "travaux")
     return redirect("teacher_dashboard")
 
 
@@ -303,104 +404,84 @@ def add_question(request, exam_id):
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
-    if exam.published:
-        messages.error(request, "Examen déjà publié : les questions ne peuvent plus être modifiées.")
+    locked = _questions_locked(exam)
+    if locked:
+        messages.error(request, locked)
         return redirect("teacher_exam", exam_id=exam.id)
-    if Attempt.objects.filter(exam=exam).exists():
-        messages.error(request, "Modification impossible : cet examen possède déjà des tentatives. "
-                                "Créez un nouveau brouillon pour modifier les questions.")
-        return redirect("teacher_exam", exam_id=exam.id)
-
     payload, error = _question_payload(request)
     if error:
         messages.error(request, error)
         return redirect("teacher_exam", exam_id=exam.id)
 
     with transaction.atomic():
+        last = exam.questions.aggregate(last=Max("position"))["last"] or 0
         q = Question.objects.create(exam=exam, text=payload["text"], question_type=payload["kind"],
-                                    duration_seconds=0, points=payload["points"],
-                                    position=(exam.questions.aggregate(max_position=Max("position"))["max_position"] or 0) + 1)
+                                    duration_seconds=0, points=payload["points"], position=last + 1)
         for position, (index, option_text) in enumerate(payload["options"], 1):
-            Option.objects.create(question=q, text=option_text[:500],
-                                  is_correct=str(index) in payload["correct"], position=position)
+            Option.objects.create(question=q, text=option_text[:500], is_correct=str(index) in payload["correct"],
+                                  position=position)
     messages.success(request, "Question ajoutée.")
     return redirect("teacher_exam", exam_id=exam.id)
 
 
 @login_required
 def edit_question(request, exam_id, question_id):
+    """Modification d'une question d'un brouillon sans tentative (#10)."""
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
-    if exam.published:
-        messages.error(request, "Impossible de modifier une question après publication de l'examen.")
-        return redirect("teacher_exam", exam_id=exam.id)
-    if Attempt.objects.filter(exam=exam).exists():
-        messages.error(request, "Modification impossible : cet examen possède déjà des tentatives. "
-                                "Créez un nouveau brouillon pour modifier les questions.")
+    locked = _questions_locked(exam)
+    if locked:
+        messages.error(request, locked)
         return redirect("teacher_exam", exam_id=exam.id)
     question = get_object_or_404(Question, pk=question_id, exam=exam)
-
+    context = {"exam": exam, "question": question, "form_text": question.text,
+               "form_kind": question.question_type, "form_points": question.points,
+               "option_rows": _option_rows_from_question(question)}
     if request.method == "POST":
         payload, error = _question_payload(request)
         if error:
             messages.error(request, error)
-            return render(request, "qcm/edit_question.html", {
-                "exam": exam, "question": question,
-                "form_text": request.POST.get("text", ""),
-                "form_kind": request.POST.get("kind", question.question_type),
-                "form_points": request.POST.get("points", question.points),
-                "option_rows": _option_rows_from_post(request),
-            })
+            context.update(form_text=request.POST.get("text", ""),
+                           form_kind=request.POST.get("kind", question.question_type),
+                           form_points=request.POST.get("points", question.points),
+                           option_rows=_option_rows_from_post(request))
+            return render(request, "qcm/edit_question.html", context)
         with transaction.atomic():
-            question.text = payload["text"]
-            question.question_type = payload["kind"]
-            question.points = payload["points"]
+            question.text, question.question_type, question.points = payload["text"], payload["kind"], payload["points"]
             question.save(update_fields=["text", "question_type", "points"])
             question.options.all().delete()
             for position, (index, option_text) in enumerate(payload["options"], 1):
                 Option.objects.create(question=question, text=option_text[:500],
                                       is_correct=str(index) in payload["correct"], position=position)
+            audit(request.user, "Question modifiée", exam, f"question n° {question.position}")
         messages.success(request, "Question mise à jour.")
         return redirect("teacher_exam", exam_id=exam.id)
-
-    return render(request, "qcm/edit_question.html", {
-        "exam": exam, "question": question,
-        "form_text": question.text,
-        "form_kind": question.question_type,
-        "form_points": question.points,
-        "option_rows": _option_rows_from_question(question),
-    })
+    return render(request, "qcm/edit_question.html", context)
 
 
 @login_required
 @require_POST
 def move_question(request, exam_id, question_id):
+    """Monter / descendre une question d'un brouillon (#10)."""
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
-    if exam.published:
-        messages.error(request, "Impossible de réordonner les questions après publication de l'examen.")
-        return redirect("teacher_exam", exam_id=exam.id)
-    if Attempt.objects.filter(exam=exam).exists():
-        messages.error(request, "Réordonnancement impossible : cet examen possède déjà des tentatives.")
+    locked = _questions_locked(exam)
+    if locked:
+        messages.error(request, locked)
         return redirect("teacher_exam", exam_id=exam.id)
     question = get_object_or_404(Question, pk=question_id, exam=exam)
     direction = request.POST.get("direction", "")
     if direction not in ("up", "down"):
         messages.error(request, "Direction de déplacement invalide.")
         return redirect("teacher_exam", exam_id=exam.id)
-
     questions = list(exam.questions.order_by("position", "id"))
-    index = next((i for i, item in enumerate(questions) if item.pk == question.pk), None)
-    if index is None:
-        messages.error(request, "Question introuvable dans cet examen.")
-        return redirect("teacher_exam", exam_id=exam.id)
+    index = next(i for i, item in enumerate(questions) if item.pk == question.pk)
     target = index - 1 if direction == "up" else index + 1
-    if target < 0 or target >= len(questions):
+    if not 0 <= target < len(questions):
         messages.info(request, "Cette question est déjà à sa place.")
         return redirect("teacher_exam", exam_id=exam.id)
-
     questions[index], questions[target] = questions[target], questions[index]
     with transaction.atomic():
         for position, item in enumerate(questions, 1):
@@ -462,6 +543,7 @@ def publish_exam(request, exam_id):
         exam.published = True
         exam.save(update_fields=["published"])
         enroll_audience(exam)
+        audit(request.user, "Examen publié", exam)
     messages.success(request, f"Examen publié. Communiquez le code d'accès {exam.access_code} aux étudiants concernés.")
     return redirect("teacher_exam", exam_id=exam.id)
 
@@ -489,12 +571,12 @@ def import_exam_students(request, exam_id):
         key = next((h for h in reader.fieldnames if h.strip().lower() in ("matricule", "student_number", "numero_etudiant", "numéro étudiant")), None)
         if not key:
             raise ValueError("Ajoutez une colonne nommée matricule.")
-        added = 0
+        added = removed = 0
         unknown = []
         with transaction.atomic():
             if exam.audience_mode != "LIST":
                 # Passage en mode liste : seuls les étudiants du fichier restent autorisés.
-                exam.enrollments.all().delete()
+                removed = exam.enrollments.all().delete()[0]
             exam.audience_mode = "LIST"
             exam.save(update_fields=["audience_mode"])
             for row in reader:
@@ -507,9 +589,43 @@ def import_exam_students(request, exam_id):
                     continue
                 _, created = ExamEnrollment.objects.get_or_create(exam=exam, student=profile.user, defaults={"source": "LIST"})
                 added += int(created)
+            audit(request.user, "Liste d'étudiants importée", exam, f"{added} ajouté(s), {removed} retiré(s)")
         messages.success(request, f"Import terminé : {added} étudiant(s) ajouté(s).")
         if unknown:
             messages.warning(request, "Matricules non reconnus : " + ", ".join(unknown[:20]))
     except (UnicodeDecodeError, ValueError, csv.Error) as exc:
         messages.error(request, str(exc))
+    return redirect("teacher_exam", exam_id=exam.id)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def add_exam_student(request, exam_id):
+    """Inscription d'un seul étudiant par matricule ; les autres inscrits ne sont pas touchés."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden()
+    number = request.POST.get("student_number", "").strip()
+    # Le matricule n'est pas unique en base : deux résultats suffisent à détecter l'ambiguïté.
+    students = list(User.objects.filter(profile__student_number=number, profile__role="STUDENT")[:2]) if number else []
+    if exam.is_archived or exam.closed_at:
+        messages.error(request, "Cet examen est clôturé ou archivé : plus aucune inscription n'est possible.")
+    elif not students:
+        messages.error(request, "Aucun compte étudiant ne porte ce matricule.")
+    elif len(students) > 1:
+        messages.error(request, "Plusieurs comptes portent ce matricule : corrigez-les avant d'inscrire l'étudiant.")
+    else:
+        student = students[0]
+        name = student.get_full_name() or student.username
+        enrollment, created = ExamEnrollment.objects.get_or_create(exam=exam, student=student,
+                                                                   defaults={"source": "LIST"})
+        if not created and enrollment.source == "LIST":
+            messages.info(request, f"{name} est déjà inscrit à cet examen.")
+        else:
+            if not created:
+                enrollment.source = "LIST"
+                enrollment.save(update_fields=["source"])
+            audit(request.user, "Étudiant inscrit à un examen", exam, f"{student.username} (matricule {number})")
+            messages.success(request, f"Inscription enregistrée : {name}.")
     return redirect("teacher_exam", exam_id=exam.id)

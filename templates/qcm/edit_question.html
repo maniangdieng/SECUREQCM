@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Modifier la question{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="instructions" %}{% endblock %}
 {% block content %}
-<div class="breadcrumb">
-  {% if exam.classroom %}<a href="{% url 'classroom_detail' exam.classroom.id %}">{{ exam.classroom.name }}</a>{% else %}<a href="{% url 'teacher_dashboard' %}">Mes classes</a>{% endif %} › <a href="{% url 'teacher_exam' exam.id %}">{{ exam.title }}</a> › Question
-</div>
 <div class="page-head">
-  <div><h1>Modifier la question</h1><p>Question {{ question.position }} · examen en brouillon</p></div>
-  <a class="btn ghost" href="{% url 'teacher_exam' exam.id %}">Annuler</a>
+  <div><h1>Modifier la question {{ question.position }}</h1><p>{{ exam.title }} · examen en brouillon</p></div>
 </div>
 <div class="card">
   <form method="post">

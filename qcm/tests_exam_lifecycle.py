@@ -251,7 +251,7 @@ class ExamWindowTests(TestCase):
         self.exam.opens_at = now - timedelta(minutes=5)
         self.exam.closes_at = now + timedelta(minutes=30)
         self.exam.save(update_fields=["opens_at", "closes_at"])
-        response = self.client.post(self.start_url)
+        response = self.client.post(self.start_url, {"confirm": "on"})
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Attempt.objects.filter(exam=self.exam, student=self.student, status=Attempt.IN_PROGRESS).exists())
 
@@ -268,7 +268,7 @@ class ExamWindowTests(TestCase):
         self.exam.opens_at = now - timedelta(minutes=5)
         self.exam.closes_at = now + timedelta(minutes=30)
         self.exam.save(update_fields=["opens_at", "closes_at"])
-        self.client.post(self.start_url)
+        self.client.post(self.start_url, {"confirm": "on"})
         attempt = Attempt.objects.get(exam=self.exam, student=self.student)
         attempt.global_deadline = now + timedelta(minutes=60)
         attempt.question_deadline = now + timedelta(minutes=30)
@@ -276,7 +276,7 @@ class ExamWindowTests(TestCase):
 
         self.exam.closes_at = timezone.now() - timedelta(seconds=1)
         self.exam.save(update_fields=["closes_at"])
-        response = self.client.post(self.start_url)
+        response = self.client.post(self.start_url, {"confirm": "on"})
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], f"/attempt/{attempt.id}/")
         self.assertEqual(self.client.get(f"/attempt/{attempt.id}/").status_code, 200)
@@ -285,11 +285,14 @@ class ExamWindowTests(TestCase):
         self.exam.opens_at = timezone.now() + timedelta(minutes=30)
         self.exam.closes_at = timezone.now() + timedelta(hours=1)
         self.exam.save(update_fields=["opens_at", "closes_at"])
-        response = self.client.get("/dashboard/student/")
+        # Interface façon Classroom (#42) : l'accueil mène à la page de l'examen, qui affiche la fenêtre.
+        self.assertContains(self.client.get("/dashboard/student/"), f'href="/student/exams/{self.exam.id}/"')
+        response = self.client.get(f"/student/exams/{self.exam.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ouvre le")
         self.assertContains(response, "Ferme le")
-        self.assertContains(response, "Pas encore ouvert")
+        self.assertContains(response, "ouvrira le")
+        self.assertNotContains(response, "Commencer l'examen")
 
     def test_create_exam_with_window_and_results_published(self):
         self.client.force_login(self.teacher)
@@ -339,3 +342,75 @@ class ExamWindowTests(TestCase):
         self.exam.refresh_from_db()
         self.assertIsNone(self.exam.opens_at)
         self.assertIsNone(self.exam.closes_at)
+
+
+# --------------------------------------------------------------------------- #
+# Intégration avec la chaîne #22 → #45 et l'interface #42 (relecture de #38)
+# --------------------------------------------------------------------------- #
+class LifecycleIntegrationTests(TestCase):
+    def setUp(self):
+        self.teacher = make_user("int_teacher", "TEACHER")
+        self.student = make_user("int_student", number="INT-1")
+        self.classroom = Classroom.objects.create(name="Intégration", owner=self.teacher)
+        ClassroomMembership.objects.create(classroom=self.classroom, user=self.teacher, role=ClassroomMembership.TEACHER)
+        ClassroomMembership.objects.create(classroom=self.classroom, user=self.student, role=ClassroomMembership.STUDENT)
+        self.exam = make_class_exam(self.teacher, self.classroom, multiple_scoring=Exam.ALL_OR_NOTHING)
+        self.question = make_question(self.exam)
+        self.enrollment = ExamEnrollment.objects.create(exam=self.exam, student=self.student, source="CLASS")
+
+    def test_manual_closing_and_window_share_one_rule(self):
+        self.assertEqual(self.exam.window_state(), "OPEN")
+        self.exam.closed_at = timezone.now()
+        self.assertEqual(self.exam.window_state(), "AFTER")
+        self.exam.closed_at = None
+        self.exam.opens_at = timezone.now() + timedelta(hours=1)
+        self.assertEqual(self.exam.window_state(), "BEFORE")
+
+    def test_access_code_can_be_validated_before_opening_but_not_after_closing(self):
+        Exam.objects.filter(pk=self.exam.pk).update(opens_at=timezone.now() + timedelta(hours=1))
+        self.client.force_login(self.student)
+        self.client.post("/student/join-exam/", {"exam_id": self.exam.id, "access_code": self.exam.access_code})
+        self.enrollment.refresh_from_db()
+        self.assertTrue(self.enrollment.code_verified)
+        self.assertFalse(Attempt.objects.exists())
+
+        other = make_class_exam(self.teacher, self.classroom, title="Fermé", closes_at=timezone.now() - timedelta(minutes=1))
+        make_question(other)
+        ExamEnrollment.objects.create(exam=other, student=self.student, source="CLASS")
+        self.client.post("/student/join-exam/", {"exam_id": other.id, "access_code": other.access_code})
+        self.assertFalse(ExamEnrollment.objects.get(exam=other, student=self.student).code_verified)
+
+    def test_results_cannot_be_published_while_students_compose(self):
+        now = timezone.now()
+        Attempt.objects.create(exam=self.exam, student=self.student, question_order=[self.question.id],
+                               global_deadline=now + timedelta(minutes=30), question_started_at=now,
+                               question_deadline=now + timedelta(minutes=10))
+        self.client.force_login(self.teacher)
+        self.client.post(f"/teacher/exams/{self.exam.id}/results/publish/")
+        self.exam.refresh_from_db()
+        self.assertFalse(self.exam.results_published)
+
+    def test_publishing_results_is_journaled(self):
+        from .models import AuditLog
+        self.client.force_login(self.teacher)
+        self.client.post(f"/teacher/exams/{self.exam.id}/results/publish/")
+        self.exam.refresh_from_db()
+        self.assertTrue(self.exam.results_published)
+        self.assertTrue(AuditLog.objects.filter(action="Notes publiées").exists())
+
+    def test_duplicate_keeps_scoring_rule(self):
+        self.client.force_login(self.teacher)
+        self.client.post(f"/teacher/exams/{self.exam.id}/duplicate/", {"classroom_id": self.classroom.id})
+        copy = Exam.objects.exclude(pk=self.exam.pk).get()
+        self.assertEqual(copy.multiple_scoring, Exam.ALL_OR_NOTHING)
+        self.assertFalse(copy.published)
+
+    def test_student_finds_published_grade_on_exam_page_even_after_security_closing(self):
+        attempt = make_completed_attempt(self.exam, self.student, self.question)
+        Attempt.objects.filter(pk=attempt.pk).update(status=Attempt.TERMINATED_SECURITY)
+        self.client.force_login(self.student)
+        page = self.client.get(f"/student/exams/{self.exam.id}/")
+        self.assertContains(page, "Note pas encore publiée")
+        Exam.objects.filter(pk=self.exam.pk).update(results_published=True)
+        page = self.client.get(f"/student/exams/{self.exam.id}/")
+        self.assertContains(page, "20,00")

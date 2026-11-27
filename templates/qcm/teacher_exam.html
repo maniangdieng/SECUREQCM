@@ -1,17 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{{ exam.title }}{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="instructions" %}{% endblock %}
 {% block content %}
-<div class="breadcrumb">
-  {% if exam.classroom %}<a href="{% url 'classroom_detail' exam.classroom.id %}">{{ exam.classroom.name }}</a>{% else %}<a href="{% url 'teacher_dashboard' %}">Mes classes</a>{% endif %} › Examen
-</div>
 <div class="page-head">
   <div>
-    <h1>{{ exam.title }} <span class="badge {% if exam.is_archived %}archived{% elif exam.published %}published{% else %}draft{% endif %}">{{ exam.state_label }}</span></h1>
-    <p>{{ exam.duration_minutes }} minutes · {{ questions|length }} question{{ questions|length|pluralize }} · {{ exam.get_audience_mode_display }}{% if exam.target_level %} · {{ exam.get_target_level_display }}{% endif %}</p>
+    <h1>{{ exam.title }} <span class="badge {{ exam.state_badge }}">{{ exam.state_label }}</span></h1>
+    <p>{{ exam.duration_minutes }} minutes · {{ questions|length }} question{{ questions|length|pluralize }} · {{ exam.get_audience_mode_display }}{% if exam.target_level %} · {{ exam.get_target_level_display }}{% endif %}{% include "qcm/_exam_window.html" %}</p>
   </div>
   <div class="actions">
     {% if exam.published %}
       <a class="btn" href="{% url 'exam_results' exam.id %}">Voir les résultats</a>
+      {% if not exam.closed_at and not exam.is_archived %}
+      <form method="post" action="{% url 'close_exam' exam.id %}" data-confirm="Clôturer l'examen ? Plus aucune nouvelle tentative ne sera possible. Les tentatives en cours pourront se terminer.">{% csrf_token %}<button class="btn ghost" type="submit">Clôturer</button></form>
+      {% endif %}
     {% else %}
       <form method="post" action="{% url 'publish_exam' exam.id %}" data-confirm="Publier l'examen ? Les questions ne pourront plus être modifiées.">{% csrf_token %}<button class="btn" type="submit">Publier l'examen</button></form>
     {% endif %}
@@ -44,32 +47,57 @@
     </div>
 
     <div class="card flat">
-      <h3>Fenêtre d'ouverture</h3>
-      <form method="post" action="{% url 'update_exam_window' exam.id %}" class="stack">
+      <h3>Notation et ordre</h3>
+      {% if has_attempts %}
+        <p class="small mb-0">Choix multiples : <strong>{{ exam.get_multiple_scoring_display|lower }}</strong> · questions : {{ exam.shuffle_questions|yesno:"ordre aléatoire,ordre fixe" }} · réponses : {{ exam.shuffle_answers|yesno:"ordre aléatoire,ordre fixe" }}.</p>
+        <p class="help">Verrouillés : des tentatives existent.</p>
+      {% else %}
+      <form method="post" action="{% url 'update_exam_settings' exam.id %}">
         {% csrf_token %}
-        <label>Ouverture<input type="datetime-local" name="opens_at" {% if exam.opens_at %}value="{{ exam.opens_at|date:'Y-m-d' }}T{{ exam.opens_at|date:'H:i' }}"{% endif %}></label>
-        <label>Fermeture<input type="datetime-local" name="closes_at" {% if exam.closes_at %}value="{{ exam.closes_at|date:'Y-m-d' }}T{{ exam.closes_at|date:'H:i' }}"{% endif %}></label>
-        <button class="btn ghost" type="submit">Enregistrer</button>
+        {% include "qcm/_exam_settings_fields.html" %}
+        <button class="btn ghost sm" type="submit">Enregistrer</button>
       </form>
-      <p class="help">Laisser vide pour ouverture/fermeture sans limite. Une tentative commencée avant la fermeture peut continuer jusqu'à sa durée.</p>
+      <p class="help">La règle de notation est annoncée à l'étudiant avant et pendant l'examen.</p>
+      {% endif %}
+    </div>
+
+    {% if not exam.closed_at and not exam.is_archived %}
+    <div class="card flat">
+      <h3>Fenêtre d'ouverture</h3>
+      <form method="post" action="{% url 'update_exam_window' exam.id %}">
+        {% csrf_token %}
+        <label>Ouverture<input type="datetime-local" name="opens_at" {% if exam.opens_at %}value="{{ exam.opens_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
+        <label>Fermeture<input type="datetime-local" name="closes_at" {% if exam.closes_at %}value="{{ exam.closes_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
+        <button class="btn ghost sm" type="submit">Enregistrer</button>
+      </form>
+      <p class="help">Vide : pas de limite. Une tentative commencée avant la fermeture va au bout de sa durée.</p>
     </div>
 
     <div class="card flat">
       <h3>Dupliquer</h3>
-      <form method="post" action="{% url 'duplicate_exam' exam.id %}" class="stack">
+      <form method="post" action="{% url 'duplicate_exam' exam.id %}">
         {% csrf_token %}
         <label>Classe cible
           <select name="classroom_id">
-            <option value="">Sans classe / conserver le ciblage</option>
-            {% for c in classrooms %}
-            <option value="{{ c.id }}" {% if exam.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-            {% endfor %}
+            {% if exam.audience_mode != "CLASS" %}<option value="">Sans classe (même ciblage)</option>{% endif %}
+            {% for c in classrooms %}<option value="{{ c.id }}" {% if exam.classroom_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
           </select>
         </label>
-        <button class="btn ghost" type="submit">Dupliquer en brouillon</button>
+        <button class="btn ghost sm" type="submit">Dupliquer en brouillon</button>
       </form>
-      <p class="help">Copie l'examen, ses questions et propositions. Aucune tentative ni affectation n'est copiée. Nouveau code d'accès.</p>
+      <p class="help">Copie les questions et les réglages, avec un nouveau code d'accès. Aucune tentative ni inscription n'est copiée.</p>
     </div>
+
+    <div class="card flat">
+      <h3>Inscrire un étudiant</h3>
+      <form method="post" action="{% url 'add_exam_student' exam.id %}">
+        {% csrf_token %}
+        <label>Matricule<input name="student_number" required maxlength="40" autocomplete="off"></label>
+        <button class="btn ghost sm" type="submit">Inscrire</button>
+      </form>
+      <p class="help">Les autres inscrits sont conservés. Un import CSV ultérieur peut remplacer la liste.</p>
+    </div>
+    {% endif %}
 
     <div class="card flat">
       <h3>Liste d'étudiants (CSV)</h3>
@@ -84,6 +112,11 @@
     {% if not has_attempts %}
     <form method="post" action="{% url 'delete_exam' exam.id %}" data-confirm="Supprimer définitivement cet examen et toutes ses questions ?">
       {% csrf_token %}<button class="btn danger-ghost block" type="submit">Supprimer l'examen</button>
+    </form>
+    {% elif not exam.is_archived %}
+    <form method="post" action="{% url 'archive_exam' exam.id %}" data-confirm="Archiver l'examen ? Les étudiants n'y auront plus accès ; les résultats sont conservés.">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn danger-ghost block" type="submit">Archiver l'examen</button>
     </form>
     {% endif %}
   </aside>
@@ -131,11 +164,11 @@
           <a class="btn ghost sm" href="{% url 'edit_question' exam.id q.id %}">Modifier</a>
           <form method="post" action="{% url 'move_question' exam.id q.id %}">
             {% csrf_token %}<input type="hidden" name="direction" value="up">
-            <button class="btn ghost sm" type="submit" {% if forloop.first %}disabled{% endif %}>↑</button>
+            <button class="btn ghost sm" type="submit" aria-label="Monter la question" {% if forloop.first %}disabled{% endif %}>↑</button>
           </form>
           <form method="post" action="{% url 'move_question' exam.id q.id %}">
             {% csrf_token %}<input type="hidden" name="direction" value="down">
-            <button class="btn ghost sm" type="submit" {% if forloop.last %}disabled{% endif %}>↓</button>
+            <button class="btn ghost sm" type="submit" aria-label="Descendre la question" {% if forloop.last %}disabled{% endif %}>↓</button>
           </form>
           <form method="post" action="{% url 'delete_question' exam.id q.id %}" data-confirm="Supprimer cette question ?">
             {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Supprimer</button>

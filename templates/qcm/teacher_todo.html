@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}À examiner{% endblock %}
+{% block content %}
+<div class="classwork">
+  <h1 class="page-title">À examiner</h1>
+  {% if exams %}
+  <ul class="stream-list">
+    {% for e in exams %}
+    <li><a class="work-row tall" href="{% url 'exam_results' e.id %}">
+      <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
+      <span class="work-title">{{ e.title }}<span class="work-sub">{% if e.classroom %}{{ e.classroom.name }}{% else %}Hors classe{% endif %}</span></span>
+      <span class="turned-in compact">
+        <span><strong>{{ e.turned_in_count }}</strong>Remis</span>
+        <span><strong>{{ e.assigned_count }}</strong>Attribués</span>
+      </span>
+    </a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-illus bg-teal">{% include "qcm/_icon.html" with name="review" %}</div>
+    <h2>Rien à examiner</h2>
+    <p>Les examens publiés dans vos classes apparaîtront ici avec le nombre de copies rendues.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

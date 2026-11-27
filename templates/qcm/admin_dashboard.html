@@ -1,17 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Administration{% endblock %}
 {% block content %}
-<section class="dashboard-hero">
-  <div>
-    <span class="eyebrow">{% if is_superadmin %}Super-administrateur{% else %}Administrateur{% endif %}</span>
-    <h1>Administration</h1>
-    <p>Vue d'ensemble de la plateforme : comptes, classes, examens, copies et cycle de vie.</p>
-  </div>
+<div class="page-head">
+  <div><h1>Administration</h1><p>{% if is_superadmin %}Super-administrateur{% else %}Administrateur{% endif %} · vue d'ensemble de la plateforme</p></div>
   <div class="actions">
     <a class="btn ghost" href="{% url 'admin_users' %}">Gérer les comptes</a>
+    <a class="btn ghost" href="{% url 'admin_journal' %}">Journal des opérations</a>
     {% if user.is_staff %}<a class="btn ghost" href="/admin/">Administration technique</a>{% endif %}
   </div>
-</section>
+</div>
 
 <div class="grid grid-stats">
   <div class="stat"><div class="value">{{ stats.users }}</div><div class="label">Comptes</div></div>
@@ -53,7 +50,7 @@
       <td class="small">{{ e.classroom.name|default:"—" }}</td>
       <td class="small">{{ e.teacher.get_full_name|default:e.teacher.username }}</td>
       <td>{{ e.attempts_count }}</td>
-      <td><span class="badge {% if e.is_archived %}archived{% elif e.published %}published{% else %}draft{% endif %}">{{ e.state_label }}</span></td>
+      <td><span class="badge {{ e.state_badge }}">{{ e.state_label }}</span></td>
       <td><div class="actions">
       {% if e.attempts_count %}
         <a class="btn ghost sm" href="{% url 'export_exam_results' e.id %}">Export CSV</a>

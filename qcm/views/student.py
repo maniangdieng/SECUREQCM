@@ -1,12 +1,12 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Attempt, ClassroomMembership
 from ..permissions import role, is_classroom_student
-from ..services import exam_window_message, visible_exams_for_student
+from ..services import close_expired_attempts, exam_window_message, grade_summary, visible_exams_for_student
 from .common import redirect_back
 
 
@@ -23,20 +23,57 @@ def annotate_exams_for_student(user, exams):
     return exams
 
 
-@login_required
-def student_dashboard(request):
-    if role(request.user) != "STUDENT":
-        return HttpResponseForbidden("Accès réservé aux étudiants.")
-    memberships = (ClassroomMembership.objects
-                   .filter(user=request.user, role=ClassroomMembership.STUDENT, classroom__is_archived=False)
-                   .select_related("classroom", "classroom__owner"))
-    exams = annotate_exams_for_student(request.user, visible_exams_for_student(request.user))
+def _split_todo(exams):
     todo = [e for e in exams if not e.student_attempt or e.student_attempt.status == Attempt.IN_PROGRESS]
     done = [e for e in exams if e.student_attempt and e.student_attempt.status != Attempt.IN_PROGRESS]
+    return todo, done
+
+
+@login_required
+def student_dashboard(request):
+    """Accueil étudiant : les cartes de ses classes, avec les examens à faire de chacune."""
+    if role(request.user) != "STUDENT":
+        return HttpResponseForbidden("Accès réservé aux étudiants.")
+    close_expired_attempts(Attempt.objects.filter(student=request.user))
+    classrooms = [m.classroom for m in (ClassroomMembership.objects
+                  .filter(user=request.user, role=ClassroomMembership.STUDENT, classroom__is_archived=False)
+                  .select_related("classroom", "classroom__owner"))]
+    todo, done = _split_todo(annotate_exams_for_student(request.user, visible_exams_for_student(request.user)))
+    for c in classrooms:
+        c.upcoming = [e for e in todo if e.classroom_id == c.id]
     return render(request, "qcm/student_dashboard.html", {
-        "classrooms": [m.classroom for m in memberships],
-        "todo_exams": todo,
-        "done_exams": done,
+        "classrooms": classrooms,
+        "other_todo": [e for e in todo if e.classroom_id is None],
+        "todo_exams": todo, "done_exams": done,
+    })
+
+
+@login_required
+def student_todo(request):
+    """Page « À faire » : tous les examens de l'étudiant, attribués ou terminés."""
+    if role(request.user) != "STUDENT":
+        return redirect("teacher_todo")
+    close_expired_attempts(Attempt.objects.filter(student=request.user))
+    todo, done = _split_todo(annotate_exams_for_student(request.user, visible_exams_for_student(request.user)))
+    tab = "termines" if request.GET.get("tab") == "termines" else "attribues"
+    return render(request, "qcm/student_todo.html", {
+        "tab": tab, "todo": todo, "done": done, "exams": done if tab == "termines" else todo,
+    })
+
+
+@login_required
+def student_exam(request, exam_id):
+    """Page d'un examen côté étudiant : consignes à gauche, carte « Vos travaux » à droite."""
+    if role(request.user) != "STUDENT":
+        return redirect("teacher_exam", exam_id=exam_id)
+    close_expired_attempts(Attempt.objects.filter(student=request.user, exam_id=exam_id))
+    exam = get_object_or_404(visible_exams_for_student(request.user).select_related("teacher"), pk=exam_id)
+    exam = annotate_exams_for_student(request.user, [exam])[0]
+    attempt = exam.student_attempt
+    grade = (grade_summary(attempt) if exam.results_published and attempt
+             and attempt.status != Attempt.IN_PROGRESS else None)
+    return render(request, "qcm/student_exam.html", {
+        "exam": exam, "question_count": exam.questions.count(), "grade": grade,
     })
 
 
@@ -53,16 +90,15 @@ def join_exam_by_code(request):
     if not exam:
         messages.error(request, "Code d'examen invalide ou examen non disponible.")
         return back
-    in_progress = Attempt.objects.filter(
-        exam=exam, student=request.user, status=Attempt.IN_PROGRESS,
-    ).exists()
-    if not in_progress:
-        window_error = exam_window_message(exam)
-        if window_error:
-            messages.error(request, window_error)
-            return back
+    # Le code peut être validé à l'avance (avant l'ouverture), mais plus une fois l'examen fermé.
+    if exam.window_state() == "AFTER":
+        messages.error(request, exam_window_message(exam))
+        return back
     profile = request.user.profile
-    if exam.audience_mode == "LEVEL":
+    individual = ExamEnrollment.objects.filter(exam=exam, student=request.user, source="LIST").first()
+    if individual:
+        enrollment = individual
+    elif exam.audience_mode == "LEVEL":
         if not exam.target_level or not profile.study_level or profile.study_level != exam.target_level:
             messages.error(request, "Cet examen n'est pas destiné à votre niveau d'études.")
             return back
@@ -79,7 +115,7 @@ def join_exam_by_code(request):
             return back
     if not enrollment.code_verified:
         enrollment.code_verified = True
-        if exam.audience_mode == "LEVEL":
+        if exam.audience_mode == "LEVEL" and not individual:
             enrollment.source = "CODE"
         enrollment.save(update_fields=["code_verified", "source"])
     messages.success(request, f"Code validé. Vous pouvez accéder à : {exam.title}.")

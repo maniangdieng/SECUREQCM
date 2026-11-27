@@ -16,7 +16,7 @@
 
   {% if attempt.exam.results_published %}
   <div class="score-ring" style="--p: {{ percentage|stringformat:'s'|default:'0' }}"><span>{{ percentage }} %</span></div>
-  <p><strong>Score : {{ score }} / {{ max_score }} points</strong></p>
+  <p><strong>Score : {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points</strong></p>
   <p class="muted small">Le pourcentage est calculé sur l'ensemble des questions de l'examen. Les questions sans réponse valent zéro point.</p>
   {% else %}
   <p class="muted">Votre copie a bien été enregistrée. Les notes seront publiées par votre enseignant.</p>

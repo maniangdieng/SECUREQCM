@@ -1,0 +1,11 @@
+{
+	# Pas de nom envoyé par le navigateur quand on tape une adresse IP : sans cette ligne,
+	# l'accès par IP échoue sous Docker. SITE_ADDRESS contient donc une seule adresse.
+	default_sni {$SITE_ADDRESS:localhost}
+}
+
+{$SITE_ADDRESS:localhost} {
+	# Durée courte au début ; à allonger (31536000) quand le certificat est définitif.
+	header Strict-Transport-Security "max-age=3600"
+	reverse_proxy web:8000
+}

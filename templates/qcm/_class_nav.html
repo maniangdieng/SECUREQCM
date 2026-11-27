@@ -1,0 +1,10 @@
+{# Barre d'onglets d'une classe (Flux · Travaux et devoirs · Personnes · Notes), comme dans Classroom. #}
+<nav class="class-tabs theme-{{ classroom.color }}" aria-label="Sections de la classe">
+  <a href="?tab=flux" class="{% if tab == 'flux' %}active{% endif %}">Flux</a>
+  <a href="?tab=travaux" class="{% if tab == 'travaux' %}active{% endif %}">Travaux et devoirs</a>
+  <a href="?tab=personnes" class="{% if tab == 'personnes' %}active{% endif %}">Personnes</a>
+  {% if teacher_view %}
+  <a href="?tab=notes" class="{% if tab == 'notes' %}active{% endif %}">Notes</a>
+  <a href="?tab=parametres" class="tab-icon {% if tab == 'parametres' %}active{% endif %}" title="Paramètres de la classe" aria-label="Paramètres de la classe">{% include "qcm/_icon.html" with name="settings" %}</a>
+  {% endif %}
+</nav>

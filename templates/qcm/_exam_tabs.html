@@ -1,0 +1,6 @@
+{# Onglets d'un examen côté enseignant, comme un devoir Classroom : « Instructions » et « Travaux des étudiants ». #}
+<nav class="class-tabs theme-{{ exam.classroom.color|default:'teal' }}" aria-label="Sections de l'examen">
+  <a href="{% url 'teacher_exam' exam.id %}" class="{% if exam_tab == 'instructions' %}active{% endif %}">Instructions</a>
+  {% if exam.published %}<a href="{% url 'exam_results' exam.id %}" class="{% if exam_tab == 'travaux' %}active{% endif %}">Travaux des étudiants</a>
+  {% else %}<span class="tab-disabled" title="Disponible après publication">Travaux des étudiants</span>{% endif %}
+</nav>

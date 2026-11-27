@@ -1,0 +1,51 @@
+{# Onglet « Personnes » commun : enseignants, puis étudiants. Les actions ne s'affichent qu'aux enseignants. #}
+<div class="people">
+  <section>
+    <div class="people-head">
+      <h2>Enseignants</h2>
+      {% if teacher_view and is_owner %}
+      <button class="icon-btn themed" type="button" data-dialog="dlg-add-teacher" title="Inviter un co-enseignant" aria-label="Inviter un co-enseignant">{% include "qcm/_icon.html" with name="person-add" %}</button>
+      {% endif %}
+    </div>
+    <ul class="people-list">
+      {% for m in teachers %}
+      <li>
+        <span class="avatar">{% if m.user.first_name %}{{ m.user.first_name|first|upper }}{% else %}{{ m.user.username|first|upper }}{% endif %}</span>
+        <span class="people-name">{{ m.user.get_full_name|default:m.user.username }}{% if teacher_view %}<span class="muted small">{% if m.user_id == classroom.owner_id %}Propriétaire{% else %}Co-enseignant{% endif %}</span>{% endif %}</span>
+        {% if teacher_view and is_owner and m.user_id != classroom.owner_id %}
+        <form method="post" action="{% url 'remove_classroom_member' classroom.id m.id %}" data-confirm="Retirer ce co-enseignant ?">{% csrf_token %}<button class="btn text danger-text sm">Retirer</button></form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section>
+    <div class="people-head">
+      <h2>Étudiants</h2>
+      <span class="people-count">{{ students|length }} étudiant{{ students|length|pluralize }}</span>
+      {% if teacher_view %}
+      <button class="icon-btn themed" type="button" data-dialog="dlg-add-students" title="Ajouter des étudiants" aria-label="Ajouter des étudiants">{% include "qcm/_icon.html" with name="person-add" %}</button>
+      {% endif %}
+    </div>
+    <ul class="people-list">
+      {% for m in students %}
+      <li>
+        <span class="avatar">{% if m.user.first_name %}{{ m.user.first_name|first|upper }}{% else %}{{ m.user.username|first|upper }}{% endif %}</span>
+        <span class="people-name">{{ m.user.get_full_name|default:m.user.username }}{% if teacher_view %}<span class="muted small">{{ m.user.profile.student_number|default:"—" }}{% if m.user.profile.study_level %} · {{ m.user.profile.get_study_level_display }}{% endif %}</span>{% endif %}</span>
+        {% if teacher_view %}
+        <form method="post" action="{% url 'remove_classroom_member' classroom.id m.id %}" data-confirm="Retirer cet étudiant de la classe ? Ses résultats déjà obtenus sont conservés.">{% csrf_token %}<button class="btn text danger-text sm">Retirer</button></form>
+        {% endif %}
+      </li>
+      {% empty %}
+      <li class="people-empty">{% if teacher_view %}Aucun étudiant. Partagez le code de la classe : <strong class="mono">{{ classroom.join_code }}</strong>{% else %}Aucun autre étudiant pour l'instant.{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if not teacher_view %}
+  <form method="post" action="{% url 'leave_classroom' classroom.id %}" class="people-leave" data-confirm="Quitter cette classe ? Vous pourrez la rejoindre à nouveau avec son code.">
+    {% csrf_token %}<button class="btn text danger-text" type="submit">Quitter la classe</button>
+  </form>
+  {% endif %}
+</div>
