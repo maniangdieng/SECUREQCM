@@ -68,7 +68,14 @@ if os.getenv("POSTGRES_HOST"):
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }}
 else:
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+        # SQLite ignore select_for_update : en mode IMMEDIATE, chaque transaction prend le verrou
+        # d'écriture dès son ouverture, et les requêtes simultanées (ex. deux événements de
+        # sécurité au même instant) attendent leur tour au lieu d'échouer en « database is locked ».
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
+    }}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

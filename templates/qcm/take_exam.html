@@ -4,122 +4,283 @@
 {% block appbar %}{% endblock %}
 {% block main_class %}exam-shell{% endblock %}
 {% block content %}
+{{ state|json_script:"exam-state" }}
+
 <div class="card gate" id="fullscreenGate">
   <div class="big-icon">⛶</div>
   <h1>{{ attempt.exam.title }}</h1>
-  <p class="muted">Question {{ attempt.current_index|add:1 }} sur {{ attempt.question_order|length }}</p>
-  <ul class="rules">
-    <li>L'examen se déroule en <strong>plein écran</strong>.</li>
-    <li>Quitter le plein écran ou changer d'onglet est une <strong>violation</strong>.</li>
-    <li>1<sup>re</sup> violation : avertissement. 2<sup>e</sup> violation : <strong>clôture définitive</strong> de l'examen.</li>
-    <li>Pas de retour en arrière. À la fin du temps d'une question, la réponse est enregistrée automatiquement.</li>
-  </ul>
-  {% if violations %}<div class="violation-banner">Attention : {{ violations }} violation déjà enregistrée. La prochaine clôturera l'examen.</div>{% endif %}
-  <button class="btn lg" type="button" id="enterFullscreen">Continuer en plein écran</button>
+  <p class="muted">Question {{ state.index }} sur {{ state.total }}</p>
+  <ul class="rules">{% include "qcm/_exam_rules.html" %}</ul>
+  {% if state.violations %}<div class="violation-banner">Attention : {{ state.violations }} violation déjà enregistrée. La prochaine clôturera l'examen.</div>{% endif %}
+  <button class="btn lg" type="button" id="enterFullscreen">Commencer en plein écran</button>
 </div>
 
 <div id="examContent" hidden>
   <div class="exam-top">
     <div>
       <div class="muted small">{{ attempt.exam.title }}</div>
-      <strong>Question {{ attempt.current_index|add:1 }} / {{ attempt.question_order|length }}</strong>
+      <strong>Question <span id="qIndex"></span> / <span id="qTotal"></span></strong>
     </div>
     <div class="timers">
-      <div class="timer-box"><div class="lbl">Cette question</div><div class="timer" id="qt">{{ question_remaining }} s</div></div>
-      <div class="timer-box"><div class="lbl">Examen</div><div class="timer" id="gt">{{ global_remaining }} s</div></div>
+      <div class="timer-box"><div class="lbl">Cette question</div><div class="timer" id="qt"></div></div>
+      <div class="timer-box"><div class="lbl">Examen</div><div class="timer" id="gt"></div></div>
     </div>
   </div>
-  <div class="progress"><span style="width:{% widthratio attempt.current_index attempt.question_order|length 100 %}%"></span></div>
-  {% if violations %}<div class="violation-banner">Une violation a déjà été enregistrée. La prochaine clôturera votre examen.</div>{% endif %}
+  <div class="progress"><span id="progressBar"></span></div>
+  <div class="violation-banner" id="violationBanner" hidden>Une violation a déjà été enregistrée. La prochaine clôturera votre examen.</div>
+  <div class="alert warning" id="networkBanner" hidden>Connexion au serveur perdue : nouvel essai en cours… Ne quittez pas la page.</div>
 
   <div class="card">
-    <div class="question-text">{{ question.text }}</div>
-    <p class="muted small">{{ question.get_question_type_display }} · {{ question.points }} point{{ question.points|pluralize }}</p>
-    <form id="answerForm" method="post" action="{% url 'submit_answer' attempt.id %}">
+    <div class="question-text" id="qText"></div>
+    <p class="muted small" id="qMeta"></p>
+    <form id="answerForm" method="post" action="{% url 'submit_answer_api' attempt.id %}">
       {% csrf_token %}
-      <input type="hidden" name="question_id" value="{{ question.id }}">
-      {% for o in options %}
-      <label class="option"><input type="{% if question.question_type == 'SINGLE' %}radio{% else %}checkbox{% endif %}" name="option" value="{{ o.id }}"> <span>{{ o.text }}</span></label>
-      {% endfor %}
+      <input type="hidden" name="question_id" id="qId">
+      <div id="qOptions"></div>
+      <p class="muted small" id="saveStatus" role="status" aria-live="polite"></p>
       <div class="spread" style="margin-top:16px">
         <span class="muted small">Le temps total de l'examen reste la limite absolue.</span>
-        <button class="btn lg" type="submit">Valider et continuer →</button>
+        <button class="btn lg" type="submit" id="submitBtn">Valider et continuer →</button>
       </div>
     </form>
   </div>
-  <form id="securityForm" method="post" action="{% url 'security_event' attempt.id %}" hidden>{% csrf_token %}<input name="event" value="TAB_SWITCH"></form>
 </div>
+
+<form id="securityForm" method="post" action="{% url 'security_event' attempt.id %}" hidden>{% csrf_token %}<input name="event" value="TAB_SWITCH"></form>
+
+{# Modales HTML : contrairement à alert(), elles ne font pas sortir du plein écran (issue #2). #}
+<dialog id="warnDialog">
+  <div class="dialog-body">
+    <h2>Avertissement</h2>
+    <p>Une <strong>violation</strong> a été détectée (sortie du plein écran ou changement d'onglet).</p>
+    <p>Une deuxième violation entraînera la <strong>clôture définitive</strong> de votre examen.</p>
+  </div>
+  <div class="dialog-foot"><button class="btn" type="button" id="warnResume">Revenir en plein écran et continuer</button></div>
+</dialog>
+<dialog id="confirmDialog">
+  <div class="dialog-body">
+    <h2>Terminer l'examen ?</h2>
+    <p>C'est la dernière question. Après l'envoi, vous ne pourrez plus modifier aucune réponse.</p>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn ghost" type="button" id="confirmCancel">Revenir</button>
+    <button class="btn" type="button" id="confirmOk">Terminer l'examen</button>
+  </div>
+</dialog>
+<dialog id="endDialog">
+  <div class="dialog-body">
+    <h2 id="endTitle">Examen clôturé</h2>
+    <p id="endMessage">Deux violations ont été détectées : votre examen est clôturé.</p>
+  </div>
+  <div class="dialog-foot"><button class="btn" type="button" id="endOk">Retour à mon espace</button></div>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (() => {
-  let questionRemaining = {{ question_remaining }};
-  let globalRemaining = {{ global_remaining }};
-  let done = false, started = false, reporting = false, hidden = false;
-  const gate = document.getElementById('fullscreenGate');
-  const content = document.getElementById('examContent');
-  const enterButton = document.getElementById('enterFullscreen');
-  const qt = document.getElementById('qt'), gt = document.getElementById('gt');
-  const form = document.getElementById('answerForm');
-  const securityForm = document.getElementById('securityForm');
-  const fmt = n => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
-  const render = () => {
-    qt.textContent = fmt(questionRemaining);
-    gt.textContent = fmt(globalRemaining);
-    qt.classList.toggle('urgent', questionRemaining <= 10);
-    gt.classList.toggle('urgent', globalRemaining <= 60);
+  const URLS = {
+    answer: "{% url 'submit_answer_api' attempt.id %}",
+    save: "{% url 'save_answer' attempt.id %}",
+    page: "{% url 'take_exam' attempt.id %}",
+    home: "{% url 'student_dashboard' %}",
   };
-  render();
+  const $ = (id) => document.getElementById(id);
+  const form = $('answerForm'), securityForm = $('securityForm');
+  const warnDialog = $('warnDialog'), endDialog = $('endDialog'), confirmDialog = $('confirmDialog');
+  const fmt = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
 
+  let state = JSON.parse($('exam-state').textContent);
+  let questionRemaining = 0, globalRemaining = 0;
+  let started = false;      // l'étudiant est entré en plein écran
+  let finished = false;     // examen terminé : plus aucune détection
+  let submitting = false;   // une réponse est en cours d'envoi
+  let reporting = false;    // un événement de sécurité est en cours d'envoi
+  let saving = false;       // une sauvegarde automatique est en cours
+  let dirty = false;        // la sélection a changé depuis la dernière sauvegarde
+  let hidden = false;
+
+  // ---------------------------------------------------------------- Affichage
+  function render(s) {
+    state = s;
+    const q = s.question;
+    $('qIndex').textContent = s.index;
+    $('qTotal').textContent = s.total;
+    $('progressBar').style.width = Math.round(((s.index - 1) / s.total) * 100) + '%';
+    $('qText').textContent = q.text;
+    $('qMeta').textContent = q.type_label + ' · ' + q.points + ' point' + (parseFloat(q.points) > 1 ? 's' : '');
+    $('qId').value = q.id;
+    const box = $('qOptions');
+    box.replaceChildren();
+    for (const o of q.options) {  // textContent : aucun HTML injecté depuis les données
+      const label = document.createElement('label');
+      label.className = 'option';
+      const input = document.createElement('input');
+      input.type = q.multiple ? 'checkbox' : 'radio';
+      input.name = 'option';
+      input.value = o.id;
+      input.checked = (q.selected || []).includes(o.id);  // sélection déjà sauvegardée
+      const span = document.createElement('span');
+      span.textContent = o.text;
+      label.append(input, span);
+      box.append(label);
+    }
+    $('violationBanner').hidden = !s.violations;
+    questionRemaining = s.question_remaining;
+    globalRemaining = s.global_remaining;
+    renderTimers();
+    dirty = false;
+    setSaveStatus((q.selected || []).length ? 'Enregistré' : '');
+    $('submitBtn').textContent = s.index === s.total ? "Terminer l'examen" : 'Valider et continuer →';
+    $('submitBtn').disabled = false;
+  }
+  function renderTimers() {
+    $('qt').textContent = fmt(questionRemaining);
+    $('gt').textContent = fmt(globalRemaining);
+    $('qt').classList.toggle('urgent', questionRemaining <= 10);
+    $('gt').classList.toggle('urgent', globalRemaining <= 60);
+  }
+  function finish(url) {
+    finished = true;  // la navigation finale fait sortir du plein écran : ce n'est pas une violation
+    window.location.href = url || URLS.page;
+  }
+
+  // ---------------------------------------------------------------- Échanges avec le serveur
+  // Renvoie le JSON, ou null si la page ne peut plus continuer (session expirée, requête refusée).
+  // Lève une erreur, donc un nouvel essai, seulement sur coupure réseau ou erreur du serveur (5xx).
+  async function post(url, body) {
+    const response = await fetch(url, {method: 'POST', body, credentials: 'same-origin', headers: {'Accept': 'application/json'}});
+    if (response.status === 401 || response.redirected) { sessionExpired(); return null; }
+    if (response.status >= 500) throw new Error('HTTP ' + response.status);
+    if (!response.ok && response.status !== 409) { finish(); return null; }  // refus : on recharge la page
+    return response.json();
+  }
+  function sessionExpired() {
+    finished = true;
+    warnDialog.close();
+    confirmDialog.close();
+    $('endTitle').textContent = 'Session expirée';
+    $('endMessage').textContent = "Reconnectez-vous pour reprendre l'examen. Le temps continue de s'écouler.";
+    $('endOk').textContent = 'Se reconnecter';
+    if (!endDialog.open) endDialog.showModal();
+  }
+
+  // ---------------------------------------------------------------- Sauvegarde automatique (issue #23)
+  function setSaveStatus(text) { $('saveStatus').textContent = text; }
+  async function saveDraft() {  // un seul envoi à la fois, toujours avec la sélection la plus récente
+    if (!dirty || saving || submitting || !started || finished) return;
+    dirty = false;
+    saving = true;
+    const questionId = $('qId').value;
+    setSaveStatus('Enregistrement…');
+    try {
+      const result = await post(URLS.save, new FormData(form));
+      saving = false;
+      // Question changée ou réponse en cours d'envoi : ce retour ne concerne plus l'écran.
+      if (!result || finished || submitting || questionId !== $('qId').value) return saveDraft();
+      if (result.status !== 'IN_PROGRESS') return finish(result.redirect);
+      if (!result.saved) return render(result);  // le serveur est déjà passé à la question suivante
+      setSaveStatus('Enregistré');
+      saveDraft();
+    } catch (e) {
+      setSaveStatus('Connexion perdue : votre sélection sera enregistrée au retour du réseau.');
+      setTimeout(() => { saving = false; dirty = true; saveDraft(); }, 2000);
+    }
+  }
+  form.addEventListener('change', () => { dirty = true; saveDraft(); });
+  window.addEventListener('offline', () => setSaveStatus('Connexion perdue : votre sélection sera enregistrée au retour du réseau.'));
+  window.addEventListener('online', () => { dirty = true; saveDraft(); });
+
+  // ---------------------------------------------------------------- Réponses (issue #1)
+  async function submitAnswer() {
+    if (submitting || finished) return;
+    submitting = true;
+    confirmDialog.close();
+    $('submitBtn').disabled = true;
+    try {
+      const next = await post(URLS.answer, new FormData(form));
+      if (!next) return;
+      $('networkBanner').hidden = true;
+      submitting = false;
+      if (next.status !== 'IN_PROGRESS') return finish(next.redirect);
+      render(next);
+    } catch (e) {
+      // Réseau coupé : on renvoie la même réponse. Si le serveur l'avait déjà reçue,
+      // le contrôle question_id l'ignore et renvoie simplement la question suivante.
+      $('networkBanner').hidden = false;
+      setTimeout(() => { submitting = false; submitAnswer(); }, 2000);
+    }
+  }
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (state.index === state.total) confirmDialog.showModal();  // envoi final : confirmation
+    else submitAnswer();
+  });
+  $('confirmOk').addEventListener('click', submitAnswer);
+  $('confirmCancel').addEventListener('click', () => confirmDialog.close());
+
+  // ---------------------------------------------------------------- Sécurité (issue #2)
   async function reportViolation(type) {
-    if (done || !started || reporting) return;
+    if (!started || finished || reporting) return;
     reporting = true;
     const data = new FormData(securityForm);
     data.set('event', type);
     try {
       const response = await fetch(securityForm.action, {method: 'POST', body: data, credentials: 'same-origin', keepalive: true});
+      if (response.status === 401) return sessionExpired();
       const result = await response.json();
       if (result.status === 'TERMINATED_SECURITY') {
-        done = true;
-        alert(result.message || 'Votre examen est clôturé après deux violations.');
-        window.location.href = '{% url "take_exam" attempt.id %}';
+        finished = true;
+        $('endMessage').textContent = result.message || 'Votre examen est clôturé.';
+        if (!endDialog.open) endDialog.showModal();
+        setTimeout(() => { window.location.href = result.redirect || URLS.home; }, 6000);
       } else if (result.warning) {
-        alert('AVERTISSEMENT : une violation a été détectée. Une deuxième violation entraînera la clôture définitive de votre examen.');
+        state.violations = result.count;
+        $('violationBanner').hidden = false;
+        if (!warnDialog.open) warnDialog.showModal();
       }
+      // result.duplicate : même action détectée deux fois (onglet + plein écran), rien à afficher.
     } catch (e) { console.error('Événement de sécurité non confirmé par le serveur.', e); }
     finally { reporting = false; }
   }
-
-  enterButton.addEventListener('click', async () => {
+  async function enterFullscreen() {
     try {
       if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      if (document.fullscreenElement) {
-        started = true;
-        gate.hidden = true;
-        content.hidden = false;
-      } else {
-        alert('Le mode plein écran est nécessaire. Autorisez-le dans votre navigateur puis réessayez.');
-      }
-    } catch (e) { alert('Impossible d’activer le plein écran. Vérifiez les autorisations du navigateur et réessayez.'); }
+    } catch (e) { /* refus du navigateur : géré ci-dessous */ }
+    return !!document.fullscreenElement;
+  }
+  $('enterFullscreen').addEventListener('click', async () => {
+    if (await enterFullscreen()) {
+      started = true;
+      $('fullscreenGate').hidden = true;
+      $('examContent').hidden = false;
+    } else {
+      $('enterFullscreen').textContent = 'Plein écran refusé : autorisez-le puis réessayez';
+    }
   });
+  $('warnResume').addEventListener('click', async () => { await enterFullscreen(); warnDialog.close(); });
+  warnDialog.addEventListener('cancel', (event) => event.preventDefault());  // Échap ne ferme pas la modale
+  endDialog.addEventListener('cancel', (event) => event.preventDefault());
+  $('endOk').addEventListener('click', () => { window.location.href = URLS.home; });
+
   document.addEventListener('fullscreenchange', () => {
-    if (started && !document.fullscreenElement && !done) reportViolation('FULLSCREEN_EXIT');
+    if (started && !finished && !document.fullscreenElement) reportViolation('FULLSCREEN_EXIT');
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && started && !hidden && !done) { hidden = true; reportViolation('TAB_SWITCH'); }
+    if (document.hidden && started && !finished && !hidden) { hidden = true; reportViolation('TAB_SWITCH'); }
     if (!document.hidden) hidden = false;
   });
-  // La validation normale d'une réponse ne doit pas compter comme une violation.
-  form.addEventListener('submit', () => { done = true; });
 
+  // ---------------------------------------------------------------- Chronomètres
   setInterval(() => {
-    if (!started || done) return;
+    if (!started || finished || submitting) return;
     questionRemaining = Math.max(0, questionRemaining - 1);
     globalRemaining = Math.max(0, globalRemaining - 1);
-    render();
-    if (questionRemaining <= 0 || globalRemaining <= 0) { done = true; form.submit(); }
+    renderTimers();
+    if (questionRemaining <= 0 || globalRemaining <= 0) submitAnswer();  // le serveur enregistre une réponse blanche
   }, 1000);
+
+  render(state);
 })();
 </script>
 {% endblock %}

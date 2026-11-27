@@ -1,4 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
 from .models import (Profile, Classroom, ClassroomMembership, Exam, ExamEnrollment, Question, Option,
                      Attempt, Response, SecurityEvent)
 
@@ -59,3 +61,25 @@ class AttemptAdmin(admin.ModelAdmin):
 
 
 admin.site.register([ClassroomMembership, Option, Response, SecurityEvent, ExamEnrollment])
+
+
+admin.site.unregister(User)
+
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    """
+    Un enseignant qui possède des examens ou des classes ne peut pas être supprimé
+    (Exam.teacher et Classroom.owner sont en PROTECT, issue #4). Django affiche déjà
+    la liste des objets protégés ; on ajoute la marche à suivre.
+    """
+
+    def delete_view(self, request, object_id, extra_context=None):
+        user = self.get_object(request, object_id)
+        if user is not None and (user.created_exams.exists() or user.owned_classrooms.exists()):
+            messages.warning(
+                request,
+                "Ce compte possède des examens ou des classes : sa suppression est bloquée pour protéger "
+                "l'historique des notes. Désactivez plutôt le compte (Administration → Comptes → Désactiver).",
+            )
+        return super().delete_view(request, object_id, extra_context)

@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Attempt, ClassroomMembership
 from ..permissions import role, is_classroom_student
-from ..services import visible_exams_for_student
+from ..services import close_expired_attempts, visible_exams_for_student
 from .common import redirect_back
 
 
@@ -27,6 +27,7 @@ def annotate_exams_for_student(user, exams):
 def student_dashboard(request):
     if role(request.user) != "STUDENT":
         return HttpResponseForbidden("Accès réservé aux étudiants.")
+    close_expired_attempts(Attempt.objects.filter(student=request.user))
     memberships = (ClassroomMembership.objects
                    .filter(user=request.user, role=ClassroomMembership.STUDENT, classroom__is_archived=False)
                    .select_related("classroom", "classroom__owner"))
