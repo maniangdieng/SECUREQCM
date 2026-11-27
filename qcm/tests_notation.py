@@ -287,7 +287,9 @@ class CloseExamTests(NotationFixture):
     def test_started_attempt_can_be_finished_after_closing(self):
         attempt = self.start()
         self.close()
-        self.assertContains(self.client.get("/dashboard/student/"), f'href="/student/exams/{self.exam.id}/start/"')
+        # Accueil → page de l'examen → « Reprendre », qui passe par start_exam.
+        self.assertContains(self.client.get("/dashboard/student/"), f'href="/student/exams/{self.exam.id}/"')
+        self.assertContains(self.client.get(f"/student/exams/{self.exam.id}/"), f'href="/student/exams/{self.exam.id}/start/"')
         self.assertRedirects(self.client.get(f"/student/exams/{self.exam.id}/start/"), f"/attempt/{attempt.id}/",
                              fetch_redirect_response=False)
         self.answer(attempt, self.multi, self.a)

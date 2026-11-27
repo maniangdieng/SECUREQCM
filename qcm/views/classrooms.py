@@ -16,13 +16,14 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 
-from ..models import Classroom, ClassroomMembership, Profile, Exam, generate_class_code
+from ..models import Attempt, Classroom, ClassroomMembership, Profile, Exam, generate_class_code
 from ..permissions import (role, is_admin, is_teacher_or_admin, can_manage_classroom,
                            is_classroom_student)
-from ..services import (audit, enroll_student_in_class_exams, unenroll_student_from_class_exams,
+from ..services import (add_turn_in_counts, audit, close_expired_attempts, enroll_student_in_class_exams, final_grades, unenroll_student_from_class_exams,
                         visible_exams_for_student)
-from .common import redirect_back
+from .common import class_tab, redirect_back
 from .student import annotate_exams_for_student
+from .teacher import manageable_classrooms
 
 
 def _classroom_fields(request):
@@ -57,33 +58,84 @@ def create_classroom(request):
     return redirect("classroom_detail", classroom_id=classroom.id)
 
 
+TEACHER_TABS = ("flux", "travaux", "personnes", "notes", "parametres")
+STUDENT_TABS = ("flux", "travaux", "personnes")
+
+
+def _grade_book(classroom, students, exams):
+    """Onglet « Notes » : une ligne par étudiant, une colonne par examen publié (dernière tentative)."""
+    published = [e for e in exams if e.published]
+    latest = {}
+    for attempt in (Attempt.objects.filter(exam__in=published, student__in=[m.user_id for m in students])
+                    .select_related("exam").order_by("started_at")):
+        latest[(attempt.student_id, attempt.exam_id)] = attempt  # la plus récente écrase
+    grades = final_grades(a for a in latest.values() if a.status != Attempt.IN_PROGRESS)
+    rows, column_values = [], {e.id: [] for e in published}
+    for m in students:
+        cells, values = [], []
+        for e in published:
+            attempt = latest.get((m.user_id, e.id))
+            grade = grades.get(attempt.id) if attempt else None
+            cells.append({"attempt": attempt, "grade": grade})
+            if grade is not None:
+                values.append(grade)
+                column_values[e.id].append(grade)
+        rows.append({"member": m, "cells": cells,
+                     "average": (sum(values) / len(values)) if values else None})
+    averages = [(sum(v) / len(v)) if v else None for v in column_values.values()]
+    return {"exams": published, "rows": rows, "averages": averages}
+
+
 @login_required
 def classroom_detail(request, classroom_id):
     classroom = get_object_or_404(Classroom.objects.select_related("owner"), pk=classroom_id)
     teachers = (ClassroomMembership.objects.filter(classroom=classroom, role=ClassroomMembership.TEACHER)
                 .select_related("user").order_by("joined_at"))
-    students = (ClassroomMembership.objects.filter(classroom=classroom, role=ClassroomMembership.STUDENT)
-                .select_related("user", "user__profile").order_by("user__last_name", "user__first_name"))
-    tab = request.GET.get("tab", "travaux")
+    students = list(ClassroomMembership.objects.filter(classroom=classroom, role=ClassroomMembership.STUDENT)
+                    .select_related("user", "user__profile").order_by("user__last_name", "user__first_name"))
+    tab = request.GET.get("tab", "flux")
+    context = {"classroom": classroom, "teachers": teachers, "students": students}
 
     if can_manage_classroom(request.user, classroom):
-        exams = (Exam.objects.filter(classroom=classroom)
-                 .annotate(question_count=Count("questions", distinct=True),
-                           attempt_count=Count("attempts", distinct=True))
-                 .order_by("is_archived", "-created_at"))
-        return render(request, "qcm/classroom_teacher.html", {
-            "classroom": classroom, "teachers": teachers, "students": students, "exams": exams,
-            "tab": tab, "levels": Profile.LEVEL_CHOICES, "colors": Classroom.COLOR_CHOICES,
+        if tab not in TEACHER_TABS:
+            tab = "flux"
+        # Une copie dont le temps est écoulé ne doit pas rester « En cours » (Notes, « Remis »).
+        close_expired_attempts(Attempt.objects.filter(exam__classroom=classroom))
+        exams = add_turn_in_counts(Exam.objects.filter(classroom=classroom).select_related("teacher")
+                                   .annotate(question_count=Count("questions", distinct=True))
+                                   .order_by("is_archived", "-created_at"))
+        context.update({
+            "tab": tab, "exams": exams, "levels": Profile.LEVEL_CHOICES, "colors": Classroom.COLOR_CHOICES,
             "is_owner": classroom.owner_id == request.user.id or is_admin(request.user),
+            "stream": [e for e in exams if e.published],
         })
+        if tab == "notes":
+            context["book"] = _grade_book(classroom, students, exams)
+        return render(request, "qcm/classroom_teacher.html", context)
 
     if is_classroom_student(request.user, classroom):
+        if tab not in STUDENT_TABS:
+            tab = "flux"
+        close_expired_attempts(Attempt.objects.filter(exam__classroom=classroom, student=request.user))
         exams = annotate_exams_for_student(request.user, visible_exams_for_student(request.user, classroom=classroom))
-        return render(request, "qcm/classroom_student.html", {
-            "classroom": classroom, "teachers": teachers, "student_count": students.count(),
-            "exams": exams, "tab": tab,
+        context.update({
+            "tab": tab, "exams": exams, "stream": exams,
+            "upcoming": [e for e in exams if not e.student_attempt or e.student_attempt.status == Attempt.IN_PROGRESS],
         })
+        return render(request, "qcm/classroom_student.html", context)
     return HttpResponseForbidden("Vous n'êtes pas membre de cette classe.")
+
+
+@login_required
+def archived_classrooms(request):
+    """Page « Classes archivées » du menu latéral."""
+    if is_teacher_or_admin(request.user):
+        classrooms = manageable_classrooms(request.user).filter(is_archived=True)
+    else:
+        classrooms = Classroom.objects.filter(memberships__user=request.user, is_archived=True)
+    classrooms = classrooms.select_related("owner").annotate(
+        student_count=Count("memberships", filter=Q(memberships__role=ClassroomMembership.STUDENT), distinct=True))
+    return render(request, "qcm/archived_classrooms.html", {"classrooms": classrooms})
 
 
 @login_required
@@ -95,13 +147,13 @@ def update_classroom(request, classroom_id):
     data = _classroom_fields(request)
     if not data["name"]:
         messages.error(request, "Le nom de la classe est obligatoire.")
-        return redirect("classroom_detail", classroom_id=classroom.id)
+        return class_tab(classroom.id, "parametres")
     for field, value in data.items():
         setattr(classroom, field, value)
     classroom.join_enabled = request.POST.get("join_enabled") == "on"
     classroom.save()
     messages.success(request, "Paramètres de la classe enregistrés.")
-    return redirect(f"/classes/{classroom.id}/?tab=parametres")
+    return class_tab(classroom.id, "parametres")
 
 
 @login_required

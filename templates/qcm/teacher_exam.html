@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ exam.title }}{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="instructions" %}{% endblock %}
 {% block content %}
-<div class="breadcrumb">
-  {% if exam.classroom %}<a href="{% url 'classroom_detail' exam.classroom.id %}">{{ exam.classroom.name }}</a>{% else %}<a href="{% url 'teacher_dashboard' %}">Mes classes</a>{% endif %} › Examen
-</div>
 <div class="page-head">
   <div>
     <h1>{{ exam.title }} <span class="badge {{ exam.state_badge }}">{{ exam.state_label }}</span></h1>

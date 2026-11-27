@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, prefetch_related_objects
 from django.utils import timezone
 
 from .models import Attempt, AuditLog, Exam, ExamEnrollment, ClassroomMembership, Question, Response
@@ -218,6 +218,27 @@ def calculate_score(attempt, grading=None):
     return total
 
 
+def final_grades(attempts):
+    """
+    Note /20 de plusieurs tentatives (onglet « Notes » d'une classe : étudiants × examens).
+    Même calcul que grade_summary : barème figé au démarrage, règle « tout ou rien » comprise.
+    Les réponses sont chargées en une requête ; le barème de repli (anciennes copies sans barème
+    figé) n'est calculé qu'une fois par examen.
+    """
+    attempts = list(attempts)
+    prefetch_related_objects(attempts, "responses")
+    fallback = {}
+    grades = {}
+    for attempt in attempts:
+        grading = attempt.grading_snapshot
+        if not grading:
+            if attempt.exam_id not in fallback:
+                fallback[attempt.exam_id] = build_grading(attempt.exam)
+            grading = fallback[attempt.exam_id]
+        grades[attempt.id] = grade_summary(attempt, grading)["final_grade"]
+    return grades
+
+
 def exam_max_score(exam):
     """Le maximum inclut TOUTES les questions, y compris celles laissées blanches."""
     return sum((q.points for q in exam.questions.all()), Decimal("0"))
@@ -406,3 +427,20 @@ def question_stats(exam):
                         for o in question.options.all()],
         })
     return stats
+
+
+def add_turn_in_counts(exams):
+    """Ajoute assigned_count (inscrits) et turned_in_count (étudiants ayant remis) à chaque examen.
+
+    Deux requêtes groupées à part : réunis dans la requête des examens, les Count sur inscriptions,
+    copies et questions multiplient les lignes entre eux (plusieurs secondes à 200 étudiants).
+    """
+    exams = list(exams)
+    assigned = dict(ExamEnrollment.objects.filter(exam__in=exams).order_by()
+                    .values_list("exam").annotate(Count("id")))
+    turned_in = dict(Attempt.objects.filter(exam__in=exams).exclude(status=Attempt.IN_PROGRESS).order_by()
+                     .values_list("exam").annotate(Count("student", distinct=True)))
+    for exam in exams:
+        exam.assigned_count = assigned.get(exam.id, 0)
+        exam.turned_in_count = turned_in.get(exam.id, 0)
+    return exams

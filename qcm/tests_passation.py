@@ -62,7 +62,9 @@ class InstructionsTests(TestCase):
         self.assertRedirects(self.client.get(self.url), "/dashboard/student/", fetch_redirect_response=False)
 
     def test_dashboard_links_to_the_instructions(self):
-        self.assertContains(self.client.get("/dashboard/student/"), f'href="{self.url}"')
+        # Accueil → page de l'examen (façon Classroom) → consignes.
+        self.assertContains(self.client.get("/dashboard/student/"), f'href="/student/exams/{self.exam.id}/"')
+        self.assertContains(self.client.get(f"/student/exams/{self.exam.id}/"), f'href="{self.url}"')
 
 
 # --------------------------------------------------------------------------- #

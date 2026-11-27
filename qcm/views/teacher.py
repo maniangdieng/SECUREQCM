@@ -14,8 +14,8 @@ from django.views.decorators.http import require_POST
 
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
 from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
-from ..services import audit, close_expired_attempts, enroll_audience
-from .common import redirect_back
+from ..services import add_turn_in_counts, audit, close_expired_attempts, enroll_audience
+from .common import class_tab, redirect_back
 
 MAX_OPTIONS = 6
 
@@ -46,6 +46,20 @@ def teacher_dashboard(request):
         "levels": Profile.LEVEL_CHOICES,
         "colors": Classroom.COLOR_CHOICES,
     })
+
+
+@login_required
+def teacher_todo(request):
+    """Page « À examiner » : les examens publiés des classes de l'enseignant, avec copies rendues / attribuées."""
+    if not is_teacher_or_admin(request.user):
+        return redirect("student_todo")
+    exams = (Exam.objects.filter(Q(classroom__in=manageable_classrooms(request.user)) | Q(teacher=request.user),
+                                 published=True, is_archived=False)
+             .distinct().select_related("classroom").order_by("-created_at"))
+    # Une copie au temps écoulé jamais rouverte doit compter comme remise.
+    close_expired_attempts(Attempt.objects.filter(exam__in=exams))
+    exams = add_turn_in_counts(exams)
+    return render(request, "qcm/teacher_todo.html", {"exams": exams})
 
 
 def _parse_duration(value):
@@ -80,7 +94,6 @@ def create_exam(request):
         classroom = get_object_or_404(Classroom, pk=classroom_id) if classroom_id.isdigit() else None
         if classroom is None or not can_manage_classroom(request.user, classroom):
             return HttpResponseForbidden("Vous ne gérez pas cette classe.")
-    fallback = ("classroom_detail", {"classroom_id": classroom.id}) if classroom else ("teacher_dashboard", {})
 
     level = request.POST.get("target_level", "").strip()
     audience_mode = request.POST.get("audience_mode", "CLASS" if classroom else "LEVEL").strip()
@@ -105,7 +118,7 @@ def create_exam(request):
         error = "Réglage de notation ou d'ordre invalide."
     if error:
         messages.error(request, error)
-        return redirect(fallback[0], **fallback[1])
+        return class_tab(classroom.id, "travaux") if classroom else redirect("teacher_dashboard")
 
     if not level and classroom:
         level = classroom.study_level
@@ -223,7 +236,7 @@ def delete_exam(request, exam_id):
         exam.delete()
     messages.success(request, f"L'examen « {title} » et ses questions/propositions ont été supprimés.")
     if classroom_id:
-        return redirect("classroom_detail", classroom_id=classroom_id)
+        return class_tab(classroom_id, "travaux")
     return redirect("teacher_dashboard")
 
 

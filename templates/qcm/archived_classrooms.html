@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Classes archivées{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<h1 class="page-title">Classes archivées</h1>
+{% if classrooms %}
+<div class="class-grid">
+  {% for c in classrooms %}{% if app_role == "STUDENT" %}{% include "qcm/_class_card.html" %}{% else %}{% include "qcm/_class_card.html" with teacher_view=True %}{% endif %}{% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-illus bg-slate">{% include "qcm/_icon.html" with name="archive" %}</div>
+  <h2>Aucune classe archivée</h2>
+  <p>Archiver une classe la retire de l'accueil sans rien supprimer : examens, copies et notes restent consultables.</p>
+</div>
+{% endif %}
+{% endblock %}

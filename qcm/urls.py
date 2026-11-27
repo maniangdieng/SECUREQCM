@@ -23,6 +23,7 @@ urlpatterns = [
     # Classes
     path("classes/create/", views.create_classroom, name="create_classroom"),
     path("classes/join/", views.join_classroom, name="join_classroom"),
+    path("classes/archived/", views.archived_classrooms, name="archived_classrooms"),
     path("classes/<int:classroom_id>/", views.classroom_detail, name="classroom_detail"),
     path("classes/<int:classroom_id>/update/", views.update_classroom, name="update_classroom"),
     path("classes/<int:classroom_id>/regenerate-code/", views.regenerate_class_code, name="regenerate_class_code"),
@@ -35,6 +36,7 @@ urlpatterns = [
 
     # Enseignant
     path("dashboard/teacher/", views.teacher_dashboard, name="teacher_dashboard"),
+    path("teacher/to-review/", views.teacher_todo, name="teacher_todo"),
     path("teacher/exams/create/", views.create_exam, name="create_exam"),
     path("teacher/exams/<int:exam_id>/", views.teacher_exam, name="teacher_exam"),
     path("teacher/exams/<int:exam_id>/duration/", views.update_exam_duration, name="update_exam_duration"),
@@ -59,6 +61,8 @@ urlpatterns = [
 
     # Étudiant
     path("dashboard/student/", views.student_dashboard, name="student_dashboard"),
+    path("student/todo/", views.student_todo, name="student_todo"),
+    path("student/exams/<int:exam_id>/", views.student_exam, name="student_exam"),
     path("student/join-exam/", views.join_exam_by_code, name="join_exam_by_code"),
     path("student/exams/<int:exam_id>/start/", views.start_exam, name="start_exam"),
     path("attempt/<int:attempt_id>/", views.take_exam, name="take_exam"),

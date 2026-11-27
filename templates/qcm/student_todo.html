@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}À faire{% endblock %}
+{% block classnav %}
+<nav class="class-tabs" aria-label="Filtrer">
+  <a href="?tab=attribues" class="{% if tab == 'attribues' %}active{% endif %}">Attribués ({{ todo|length }})</a>
+  <a href="?tab=termines" class="{% if tab == 'termines' %}active{% endif %}">Terminés ({{ done|length }})</a>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="classwork">
+  {% if exams %}
+  <ul class="stream-list">{% for e in exams %}{% include "qcm/_student_exam.html" with show_class=True %}{% endfor %}</ul>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-illus bg-green">{% include "qcm/_icon.html" with name="check" %}</div>
+    <h2>{% if tab == "termines" %}Aucun examen terminé{% else %}Aucun travail à faire{% endif %}</h2>
+    <p>{% if tab == "termines" %}Vos examens terminés apparaîtront ici.{% else %}Vous êtes à jour.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

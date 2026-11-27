@@ -1,160 +1,266 @@
 {% extends "base.html" %}
 {% block title %}{{ classroom.name }}{% endblock %}
+{% block body_class %}theme-{{ classroom.color }}{% endblock %}
+{% block crumb %}{% include "qcm/_class_crumb.html" %}{% endblock %}
+{% block classnav %}{% include "qcm/_class_nav.html" with teacher_view=True %}{% endblock %}
+{% block main_class %}page{% if tab == "notes" %} wide{% endif %}{% endblock %}
 {% block content %}
-<div class="class-hero banner-{{ classroom.color }}">
-  <span class="banner-deco"></span>
-  <h1>{{ classroom.name }}</h1>
-  <div class="sub">{{ classroom.section }}{% if classroom.section and classroom.subject %} · {% endif %}{{ classroom.subject }}</div>
-  {% if classroom.is_archived %}<p><span class="badge archived">Classe archivée</span></p>{% endif %}
-  <div class="hero-code">
-    Code de la classe : <strong>{{ classroom.join_code }}</strong>
-    <button class="btn ghost sm" type="button" data-copy="{{ classroom.join_code }}">Copier</button>
-    {% if not classroom.join_enabled %}<span class="badge danger">Inscriptions fermées</span>{% endif %}
-  </div>
-</div>
-
-<nav class="tabs">
-  <a href="?tab=travaux" class="{% if tab == 'travaux' %}active{% endif %}">Travaux & examens</a>
-  <a href="?tab=personnes" class="{% if tab == 'personnes' %}active{% endif %}">Personnes ({{ students|length }})</a>
-  <a href="?tab=parametres" class="{% if tab == 'parametres' %}active{% endif %}">Paramètres</a>
-</nav>
+<div class="class-page theme-{{ classroom.color }}">
 
 {% if tab == "personnes" %}
-<div class="grid grid-2">
-  <div class="card">
-    <div class="card-title"><h2>Enseignants</h2></div>
-    <ul class="list">
-      {% for m in teachers %}
-      <li class="list-item">
-        <div class="person"><span class="avatar">{{ m.user.first_name|first|upper|default:m.user.username|first|upper }}{{ m.user.last_name|first|upper }}</span>
-          <div><strong>{{ m.user.get_full_name|default:m.user.username }}</strong><div class="meta">{% if m.user_id == classroom.owner_id %}Propriétaire{% else %}Co-enseignant{% endif %}</div></div></div>
-        {% if is_owner and m.user_id != classroom.owner_id %}
-        <form method="post" action="{% url 'remove_classroom_member' classroom.id m.id %}" data-confirm="Retirer ce co-enseignant ?">{% csrf_token %}<button class="btn danger-ghost sm">Retirer</button></form>
-        {% endif %}
+  {% include "qcm/_people.html" with teacher_view=True %}
+
+{% elif tab == "notes" %}
+  {% if book.exams and students %}
+  <div class="gradebook-wrap">
+    <table class="gradebook">
+      <thead>
+        <tr>
+          <th class="gb-student">Étudiants</th>
+          {% for e in book.exams %}
+          <th class="gb-exam"><a href="{% url 'exam_results' e.id %}"><span class="gb-date">{{ e.created_at|date:"j M" }}</span><span class="gb-title">{{ e.title }}</span><span class="gb-max">sur 20</span></a></th>
+          {% endfor %}
+          <th class="gb-avg">Moyenne</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="gb-class-avg">
+          <th>Moyenne de la classe</th>
+          {% for avg in book.averages %}<td>{% if avg is not None %}{{ avg|floatformat:2 }}{% else %}—{% endif %}</td>{% endfor %}
+          <td></td>
+        </tr>
+        {% for row in book.rows %}
+        <tr>
+          <th><span class="avatar sm">{% if row.member.user.first_name %}{{ row.member.user.first_name|first|upper }}{% else %}{{ row.member.user.username|first|upper }}{% endif %}</span>{{ row.member.user.get_full_name|default:row.member.user.username }}</th>
+          {% for cell in row.cells %}
+          <td>
+            {% if cell.grade is not None %}<a href="{% url 'attempt_result_detail' cell.attempt.id %}" class="{% if cell.attempt.status == 'TERMINATED_SECURITY' %}gb-flag{% endif %}" title="{{ cell.attempt.get_status_display }}">{{ cell.grade|floatformat:2 }}</a>
+            {% elif cell.attempt %}<span class="gb-state">En cours</span>
+            {% else %}<span class="gb-state">—</span>{% endif %}
+          </td>
+          {% endfor %}
+          <td class="gb-avg">{% if row.average is not None %}{{ row.average|floatformat:2 }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="help">Note de la dernière tentative de chaque étudiant. Une note en rouge signale une copie clôturée pour non-respect des règles.</p>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-illus bg-{{ classroom.color }}">{% include "qcm/_icon.html" with name="grades" %}</div>
+    <h2>Pas encore de notes</h2>
+    <p>{% if not students %}Ajoutez des étudiants à la classe, puis publiez un examen.{% else %}Les notes apparaîtront ici dès qu'un examen sera publié.{% endif %}</p>
+  </div>
+  {% endif %}
+
+{% elif tab == "parametres" %}
+  <div class="settings">
+    <section class="settings-card">
+      <h2>Informations sur la classe</h2>
+      <form method="post" action="{% url 'update_classroom' classroom.id %}">
+        {% csrf_token %}
+        <label>Nom de la classe (obligatoire)<input name="name" value="{{ classroom.name }}" required maxlength="120"></label>
+        <label>Description<textarea name="description" rows="3">{{ classroom.description }}</textarea></label>
+        <label>Section<input name="section" value="{{ classroom.section }}" maxlength="120"></label>
+        <label>Matière<input name="subject" value="{{ classroom.subject }}" maxlength="120"></label>
+        <div class="row">
+          <label class="grow">Niveau
+            <select name="study_level"><option value="">—</option>{% for value, label in levels %}<option value="{{ value }}" {% if classroom.study_level == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          </label>
+          <label class="grow">Couleur du thème
+            <select name="color">{% for value, label in colors %}<option value="{{ value }}" {% if classroom.color == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" name="join_enabled" {% if classroom.join_enabled %}checked{% endif %}> Les étudiants peuvent rejoindre la classe avec le code</label>
+        <button class="btn" type="submit">Enregistrer</button>
+      </form>
+    </section>
+
+    <section class="settings-card">
+      <h2>Code de la classe</h2>
+      <div class="settings-row">
+        <span class="code-chip">{{ classroom.join_code }}</span>
+        <form method="post" action="{% url 'regenerate_class_code' classroom.id %}" data-confirm="Générer un nouveau code ? L'ancien ne fonctionnera plus.">
+          {% csrf_token %}<input type="hidden" name="next" value="{% url 'classroom_detail' classroom.id %}?tab=parametres">
+          <button class="btn text" type="submit">Réinitialiser</button>
+        </form>
+      </div>
+      {% if not classroom.join_enabled %}<p class="small" style="color:var(--danger)">Inscription par code désactivée.</p>{% endif %}
+    </section>
+
+    {% if is_owner %}
+    <section class="settings-card">
+      <h2>Archiver ou supprimer</h2>
+      <form method="post" action="{% url 'archive_classroom' classroom.id %}" class="settings-row">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'classroom_detail' classroom.id %}?tab=parametres">
+        <span class="small muted">Une classe archivée n'accepte plus de membres et disparaît de l'accueil des étudiants. Tout reste consultable.</span>
+        <button class="btn ghost" type="submit">{% if classroom.is_archived %}Restaurer{% else %}Archiver{% endif %}</button>
+      </form>
+      <hr>
+      {% if not exams %}
+      <form method="post" action="{% url 'delete_classroom' classroom.id %}" class="settings-row" data-confirm="Supprimer définitivement cette classe ?">
+        {% csrf_token %}<span class="small muted">Supprime définitivement la classe (possible seulement sans examen).</span>
+        <button class="btn danger-ghost" type="submit">Supprimer</button>
+      </form>
+      {% else %}<p class="small muted mb-0">La suppression n'est possible que pour une classe sans examen : archivez-la plutôt.</p>{% endif %}
+    </section>
+    {% endif %}
+  </div>
+
+{% elif tab == "travaux" %}
+  <div class="classwork">
+    <details class="create-menu">
+      <summary class="btn pill">{% include "qcm/_icon.html" with name="plus" %} Créer</summary>
+      <div class="menu">
+        <button type="button" data-dialog="dlg-create-exam">{% include "qcm/_icon.html" with name="assignment" %} Examen QCM</button>
+        <a href="{% url 'import_qcm' %}?classe={{ classroom.id }}">{% include "qcm/_icon.html" with name="upload" %} Importer un sujet (PDF, Word, Excel, JSON)</a>
+      </div>
+    </details>
+
+    {% if exams %}
+    <ul class="stream-list">
+      {% for e in exams %}
+      <li>
+        <details class="work-item">
+          <summary class="work-row">
+            <span class="work-icon {% if not e.published or e.is_archived or e.closed_at %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
+            <span class="work-title">{{ e.title }}</span>
+            <span class="work-meta">{{ e.state_label }}</span>
+          </summary>
+          <div class="work-detail">
+            <div class="work-detail-main">
+              <p class="small muted">{{ e.question_count }} question{{ e.question_count|pluralize }} · {{ e.duration_minutes }} min · {{ e.get_audience_mode_display }}</p>
+              {% if e.description %}<p class="small">{{ e.description|truncatechars:240 }}</p>{% endif %}
+            </div>
+            {% if e.published %}
+            <div class="turned-in">
+              <div><strong>{{ e.turned_in_count }}</strong><span>Remis</span></div>
+              <div><strong>{{ e.assigned_count }}</strong><span>Attribués</span></div>
+            </div>
+            {% endif %}
+          </div>
+          <div class="work-detail-foot">
+            <a class="btn text" href="{% url 'teacher_exam' e.id %}">Afficher l'examen</a>
+            {% if e.published %}<a class="btn text" href="{% url 'exam_results' e.id %}">Travaux des étudiants</a>{% endif %}
+          </div>
+        </details>
       </li>
       {% endfor %}
     </ul>
-    {% if is_owner %}
-    <form method="post" action="{% url 'add_coteacher' classroom.id %}" class="row" style="margin-top:12px">
-      {% csrf_token %}
-      <label class="grow mb-0">Inviter un co-enseignant<input name="identifier" placeholder="Identifiant ou e-mail" required></label>
-      <button class="btn ghost" type="submit">Ajouter</button>
-    </form>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-illus bg-{{ classroom.color }}">{% include "qcm/_icon.html" with name="assignment" %}</div>
+      <h2>C'est ici que vous attribuez des examens</h2>
+      <p>Créez un examen QCM ou importez un sujet existant, puis publiez-le pour la classe.</p>
+    </div>
     {% endif %}
   </div>
-
-  <div class="card">
-    <div class="card-title"><h2>Étudiants</h2><span class="muted">{{ students|length }}</span></div>
-    <p class="small muted">Les étudiants rejoignent la classe avec le code <strong class="mono">{{ classroom.join_code }}</strong>. Vous pouvez aussi les ajouter par matricule.</p>
-    <details class="panel" style="margin-bottom:12px">
-      <summary>Ajouter par matricules</summary>
-      <form method="post" action="{% url 'add_students_to_classroom' classroom.id %}">
-        {% csrf_token %}
-        <label>Matricules (un par ligne, ou séparés par des virgules)<textarea name="student_numbers" rows="4" required></textarea></label>
-        <button class="btn" type="submit">Ajouter à la classe</button>
-      </form>
-    </details>
-    <ul class="list">
-      {% for m in students %}
-      <li class="list-item">
-        <div class="person"><span class="avatar">{{ m.user.first_name|first|upper|default:m.user.username|first|upper }}{{ m.user.last_name|first|upper }}</span>
-          <div><strong>{{ m.user.get_full_name|default:m.user.username }}</strong><div class="meta">{{ m.user.profile.student_number|default:"—" }}{% if m.user.profile.study_level %} · {{ m.user.profile.get_study_level_display }}{% endif %}</div></div></div>
-        <form method="post" action="{% url 'remove_classroom_member' classroom.id m.id %}" data-confirm="Retirer cet étudiant de la classe ? Ses résultats déjà obtenus sont conservés.">{% csrf_token %}<button class="btn danger-ghost sm">Retirer</button></form>
-      </li>
-      {% empty %}<li class="muted">Aucun étudiant pour l'instant. Partagez le code de la classe.</li>{% endfor %}
-    </ul>
-  </div>
-</div>
-
-{% elif tab == "parametres" %}
-<div class="grid grid-2">
-  <div class="card">
-    <h2>Informations de la classe</h2>
-    <form method="post" action="{% url 'update_classroom' classroom.id %}">
-      {% csrf_token %}
-      <label>Nom<input name="name" value="{{ classroom.name }}" required maxlength="120"></label>
-      <div class="row">
-        <label class="grow">Section<input name="section" value="{{ classroom.section }}" maxlength="120"></label>
-        <label class="grow">Matière<input name="subject" value="{{ classroom.subject }}" maxlength="120"></label>
-      </div>
-      <label>Description<textarea name="description" rows="3">{{ classroom.description }}</textarea></label>
-      <div class="row">
-        <label class="grow">Niveau
-          <select name="study_level"><option value="">—</option>{% for value, label in levels %}<option value="{{ value }}" {% if classroom.study_level == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-        </label>
-        <label class="grow">Couleur
-          <select name="color">{% for value, label in colors %}<option value="{{ value }}" {% if classroom.color == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-        </label>
-      </div>
-      <label class="check"><input type="checkbox" name="join_enabled" {% if classroom.join_enabled %}checked{% endif %}> Autoriser les étudiants à rejoindre avec le code</label>
-      <button class="btn" type="submit">Enregistrer</button>
-    </form>
-  </div>
-  <div class="card">
-    <h2>Code de la classe</h2>
-    <p><span class="code-chip">{{ classroom.join_code }}</span></p>
-    <form method="post" action="{% url 'regenerate_class_code' classroom.id %}" data-confirm="Générer un nouveau code ? L'ancien ne fonctionnera plus.">
-      {% csrf_token %}<input type="hidden" name="next" value="{% url 'classroom_detail' classroom.id %}?tab=parametres">
-      <button class="btn ghost" type="submit">Générer un nouveau code</button>
-    </form>
-    {% if is_owner %}
-    <hr>
-    <h2>Zone sensible</h2>
-    <form method="post" action="{% url 'archive_classroom' classroom.id %}" style="margin-bottom:10px">
-      {% csrf_token %}<input type="hidden" name="next" value="{% url 'classroom_detail' classroom.id %}?tab=parametres">
-      <button class="btn ghost" type="submit">{% if classroom.is_archived %}Restaurer la classe{% else %}Archiver la classe{% endif %}</button>
-      <span class="help">Une classe archivée n'accepte plus de nouveaux membres et disparaît des tableaux de bord étudiants.</span>
-    </form>
-    {% if not exams %}
-    <form method="post" action="{% url 'delete_classroom' classroom.id %}" data-confirm="Supprimer définitivement cette classe ?">
-      {% csrf_token %}<button class="btn danger-ghost" type="submit">Supprimer la classe</button>
-    </form>
-    {% else %}<p class="help">La suppression n'est possible que pour une classe sans examen.</p>{% endif %}
-    {% endif %}
-  </div>
-</div>
 
 {% else %}
-<div class="layout-side">
-  <aside class="card flat">
-    <h3>Nouvel examen</h3>
-    <form method="post" action="{% url 'create_exam' %}">
-      {% csrf_token %}
-      <input type="hidden" name="classroom_id" value="{{ classroom.id }}">
-      <label>Titre<input name="title" required placeholder="Ex. Devoir n°1"></label>
-      <label>Description<textarea name="description" rows="2"></textarea></label>
-      <label>Destinataires
-        <select name="audience_mode">
-          <option value="CLASS" selected>Toute la classe</option>
-          <option value="LIST">Étudiants sélectionnés (CSV)</option>
-        </select>
-      </label>
-      <label>Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180" required></label>
-      {% include "qcm/_exam_settings_fields.html" with exam=None %}
-      <button class="btn block" type="submit">Créer en brouillon</button>
-    </form>
-    <hr>
-    <a class="btn ghost block" href="{% url 'import_qcm' %}?classe={{ classroom.id }}">Importer un sujet (PDF, Word, Excel, JSON)</a>
-  </aside>
-
-  <section>
-    {% for e in exams %}
-    <div class="work">
-      <span class="icon {% if e.is_archived %}done{% endif %}">{{ forloop.revcounter }}</span>
-      <div class="info">
-        <a href="{% url 'teacher_exam' e.id %}"><strong>{{ e.title }}</strong></a>
-        <div class="meta">{{ e.question_count }} question{{ e.question_count|pluralize }} · {{ e.duration_minutes }} min · {{ e.get_audience_mode_display }} · {{ e.attempt_count }} copie{{ e.attempt_count|pluralize }}</div>
+  {% include "qcm/_class_banner.html" %}
+  <div class="stream">
+    <aside class="stream-side">
+      <div class="side-card">
+        <div class="side-card-head">
+          <h3>Code du cours</h3>
+          <button class="icon-btn sm themed" type="button" data-dialog="dlg-code" title="Afficher en grand" aria-label="Afficher le code en grand">{% include "qcm/_icon.html" with name="fullscreen" %}</button>
+        </div>
+        <div class="class-code">{{ classroom.join_code }}
+          <button class="icon-btn sm" type="button" data-copy="{{ classroom.join_code }}" title="Copier le code" aria-label="Copier le code">{% include "qcm/_icon.html" with name="copy" %}</button>
+        </div>
+        {% if not classroom.join_enabled %}<p class="small" style="color:var(--danger);margin:6px 0 0">Inscription par code désactivée</p>{% endif %}
       </div>
-      <span class="badge {{ e.state_badge }}">{{ e.state_label }}</span>
-      <div class="actions">
-        <a class="btn ghost sm" href="{% url 'teacher_exam' e.id %}">Gérer</a>
-        {% if e.published %}<a class="btn sm" href="{% url 'exam_results' e.id %}">Résultats</a>{% endif %}
+    </aside>
+    <section class="stream-main">
+      <button class="post post-compose" type="button" data-dialog="dlg-create-exam">
+        <span class="avatar">{% if user.first_name %}{{ user.first_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
+        <span class="muted">Créer un examen pour la classe…</span>
+      </button>
+      {% for e in stream %}
+      <a class="post" href="{% url 'teacher_exam' e.id %}">
+        <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
+        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong></span>
+      </a>
+      {% empty %}
+      <div class="post post-empty">
+        <p class="mb-0"><strong>C'est ici que vous communiquez avec votre classe.</strong><br><span class="muted small">Chaque examen publié apparaît dans ce flux pour les étudiants.</span></p>
       </div>
-    </div>
-    {% empty %}
-    <div class="empty"><h3>Aucun examen dans cette classe</h3><p>Créez un examen à gauche ou importez un sujet existant.</p></div>
-    {% endfor %}
-  </section>
-</div>
+      {% endfor %}
+    </section>
+  </div>
 {% endif %}
+</div>
+
+<dialog id="dlg-create-exam">
+  <form method="post" action="{% url 'create_exam' %}">
+    {% csrf_token %}
+    <input type="hidden" name="classroom_id" value="{{ classroom.id }}">
+    <div class="dialog-body">
+      <h2>Examen QCM</h2>
+      <label>Titre<input name="title" required placeholder="Ex. Devoir n°1"></label>
+      <label>Instructions (facultatif)<textarea name="description" rows="3"></textarea></label>
+      <div class="row">
+        <label class="grow">Pour
+          <select name="audience_mode">
+            <option value="CLASS" selected>Tous les étudiants</option>
+            <option value="LIST">Étudiants sélectionnés (CSV)</option>
+          </select>
+        </label>
+        <label style="width:150px">Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180" required></label>
+      </div>
+      <div class="row settings-row">{% include "qcm/_exam_settings_fields.html" with exam=None %}</div>
+      <p class="help mb-0">L'examen est créé en brouillon : ajoutez les questions puis publiez-le.</p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn text" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Créer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-code" class="code-dialog">
+  <div class="dialog-body center">
+    <p class="muted">Code du cours</p>
+    <div class="code-huge">{{ classroom.join_code }}</div>
+    <p class="muted mb-0">{{ classroom.name }}{% if classroom.section %} · {{ classroom.section }}{% endif %}</p>
+  </div>
+  <div class="dialog-foot"><button class="btn text" type="button" data-close>Fermer</button></div>
+</dialog>
+
+{% if is_owner %}
+<dialog id="dlg-add-teacher">
+  <form method="post" action="{% url 'add_coteacher' classroom.id %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Inviter des enseignants</h2>
+      <label>Identifiant ou e-mail<input name="identifier" required placeholder="Ex. a.ndiaye"></label>
+      <p class="help mb-0">Les co-enseignants peuvent tout faire dans la classe, sauf la supprimer ou retirer d'autres enseignants.</p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn text" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Inviter</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<dialog id="dlg-add-students">
+  <form method="post" action="{% url 'add_students_to_classroom' classroom.id %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Ajouter des étudiants</h2>
+      <div class="dialog-box">
+        <p class="small mb-0">Code de la classe : <strong class="mono">{{ classroom.join_code }}</strong>
+          <button class="btn text sm" type="button" data-copy="{{ classroom.join_code }}">Copier</button></p>
+        <p class="help mb-0">Les étudiants peuvent rejoindre la classe eux-mêmes avec ce code.</p>
+      </div>
+      <label>Ou ajoutez-les par matricule (un par ligne, ou séparés par des virgules)<textarea name="student_numbers" rows="4" required></textarea></label>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn text" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Ajouter</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}
