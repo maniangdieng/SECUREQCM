@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from .models import Attempt, Response, SecurityEvent
+from .services import violation_detail
 from .tests_examen_securite import ExamFixture
 from .views.attempts import VIOLATION_DEBOUNCE_SECONDS
 
@@ -56,6 +57,33 @@ class InformationEventTests(LaterMixin, ExamFixture):
         self.assertContains(page, "Perte de focus de la fenêtre")
         self.assertContains(page, "Redimensionnement de la fenêtre")
         self.assertNotContains(page, "FOCUS_LOSS")
+
+
+class ProlongedFocusLossTests(LaterMixin, ExamFixture):
+    """Alt+Tab : la page signale FOCUS_AWAY quand la fenêtre reste sans focus."""
+
+    def test_second_prolonged_focus_loss_closes_the_exam(self):
+        result = self.violation("FOCUS_AWAY")
+        self.assertTrue(result["warning"])
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(self.violation_later("FOCUS_AWAY")["status"], "TERMINATED_SECURITY")
+
+    def test_same_gesture_as_a_fullscreen_exit_counts_once(self):
+        self.violation("FULLSCREEN_EXIT")
+        self.assertTrue(self.violation_later("FOCUS_AWAY", delay=2)["duplicate"])
+
+    def test_teacher_sees_it_as_a_violation(self):
+        self.violation("FOCUS_AWAY")
+        self.client.force_login(self.teacher)
+        page = self.client.get(f"/teacher/attempts/{self.attempt.id}/results/")
+        self.assertContains(page, "Perte de focus prolongée")
+        self.assertNotContains(page, "FOCUS_AWAY")
+        self.assertEqual(violation_detail(self.attempt), "Perte de focus prolongée : 1")
+
+    def test_rules_warn_the_student(self):
+        page = self.client.get(f"/attempt/{self.attempt.id}/")
+        self.assertContains(page, "plus de 2 secondes")
+        self.assertContains(page, "ou fenêtre quittée")  # texte de l'avertissement
 
 
 class ViolationCounterTests(LaterMixin, ExamFixture):

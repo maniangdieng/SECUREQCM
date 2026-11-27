@@ -76,6 +76,8 @@ Cocher et dater au fur et à mesure.
 - Elle repose sur le navigateur : contournable (second appareil, outils du navigateur), avec des faux positifs.
   Elle ne remplace ni un surveillant ni Safe Exam Browser, qui n'est pas intégré.
 - Recharger la page d'examen enregistre une violation.
+- Une perte de focus de plus de 2 secondes est une violation, quelle qu'en soit la cause (Alt+Tab, fenêtre système,
+  appel). Des allers-retours plus courts ne comptent pas.
 - Une seconde violation réelle survenant moins de 3 secondes après la première est ignorée comme doublon.
 - Les consignes annoncent une clôture « définitive » alors qu'une reprise peut être autorisée.
 

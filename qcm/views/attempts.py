@@ -5,7 +5,7 @@ Règles conservées de la version d'origine :
 - chronomètre contrôlé côté serveur (échéance globale + échéance par question) ;
 - temps par question = durée totale ÷ nombre de questions (secondes réparties exactement) ;
 - passage séquentiel sans retour en arrière, réponse blanche à l'expiration ;
-- 1re violation (changement d'onglet / sortie du plein écran) = avertissement,
+- 1re violation (changement d'onglet / sortie du plein écran / fenêtre quittée) = avertissement,
   2e violation = clôture TERMINATED_SECURITY définitive pour cet examen.
 
 Ajouts :
@@ -36,7 +36,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role, can_authorize_resume
 from ..services import (RESUME_EVENT, VIOLATION_LABELS, audit, build_grading, exam_max_score, grade_summary,
-                        locked_attempts, question_time_seconds, advance, close_attempt, apply_deadlines)
+                        locked_attempts, advance, close_attempt, apply_deadlines)
 
 SECURITY_EVENTS = set(VIOLATION_LABELS)
 INFO_EVENTS = {"FOCUS_LOSS", "WINDOW_RESIZE"}  # journalisés pour information, jamais comptés

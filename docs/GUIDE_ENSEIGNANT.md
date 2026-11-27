@@ -86,7 +86,8 @@ Toujours relire la prévisualisation : c'est le seul contrôle des bonnes répon
 - Le chronomètre est géré par le serveur : il continue si l'étudiant ferme la page.
 - Pas de retour en arrière. À la fin du temps d'une question, la sélection enregistrée est conservée et l'examen
   avance.
-- Quitter le plein écran ou changer d'onglet est une violation : avertissement à la première, clôture à la seconde.
+- Quitter le plein écran, changer d'onglet ou quitter la fenêtre plus de 2 secondes (Alt+Tab) est une violation :
+  avertissement à la première, clôture à la seconde.
   Recharger la page compte comme une violation ; la fermer peut aussi en enregistrer une.
 - **Clôturer** empêche tout nouveau démarrage ; les copies en cours se terminent dans leur temps.
 

@@ -18,7 +18,6 @@ from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST, require_safe
 

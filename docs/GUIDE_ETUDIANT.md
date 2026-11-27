@@ -36,10 +36,11 @@ Cocher la case, **Commencer l'examen**, puis **Commencer en plein écran**.
 | Action | Conséquence |
 |---|---|
 | Quitter le plein écran, changer d'onglet, **recharger la page** | violation |
+| Passer à une autre application (Alt+Tab) ou fenêtre pendant plus de 2 secondes | violation |
 | 1re violation | avertissement |
 | 2e violation | **examen clôturé** |
 
-Les pertes de focus et les redimensionnements sont notés dans un journal, sans compter comme violations. Un filigrane
+Les pertes de focus plus brèves et les redimensionnements sont notés dans un journal, sans compter comme violations. Un filigrane
 à votre nom couvre l'écran.
 
 ### En cas de problème
