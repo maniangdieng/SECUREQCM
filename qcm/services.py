@@ -15,7 +15,8 @@ from .models import Attempt, AuditLog, Exam, ExamEnrollment, ClassroomMembership
 
 
 # Événements de sécurité : seules ces violations sont comptées.
-VIOLATION_LABELS = {"TAB_SWITCH": "Changement d'onglet", "FULLSCREEN_EXIT": "Sortie du plein écran"}
+VIOLATION_LABELS = {"TAB_SWITCH": "Changement d'onglet", "FULLSCREEN_EXIT": "Sortie du plein écran",
+                    "FOCUS_AWAY": "Perte de focus prolongée"}
 RESUME_EVENT = "RESUME_AUTHORIZED"
 
 

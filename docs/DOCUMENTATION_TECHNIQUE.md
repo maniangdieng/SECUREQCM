@@ -80,8 +80,8 @@ Principes à conserver :
   SQLite ignore ce verrou et utilise des transactions `IMMEDIATE` : tester la concurrence sur PostgreSQL.
 - Une réponse visant une autre question que la question courante est ignorée.
 - Statuts : en cours, terminée, temps écoulé, clôturée pour sécurité, interrompue.
-- Violations comptées : changement d'onglet, sortie du plein écran ; la 2e clôture. Pertes de focus et
-  redimensionnements sont seulement journalisés. Tout cela vient du navigateur et peut être contourné.
+- Violations comptées : changement d'onglet, sortie du plein écran, perte de focus de plus de 2 secondes ; la 2e
+  clôture. Pertes de focus plus brèves et redimensionnements sont seulement journalisés. Tout cela vient du navigateur et peut être contourné.
 
 ## Notation et résultats
 

@@ -54,7 +54,7 @@
 <dialog id="warnDialog">
   <div class="dialog-body">
     <h2>Avertissement</h2>
-    <p>Une <strong>violation</strong> a été détectée (sortie du plein écran ou changement d'onglet).</p>
+    <p>Une <strong>violation</strong> a été détectée (sortie du plein écran, changement d'onglet ou fenêtre quittée).</p>
     <p>Une deuxième violation entraînera la <strong>clôture définitive</strong> de votre examen.</p>
   </div>
   <div class="dialog-foot"><button class="btn" type="button" id="warnResume">Revenir en plein écran et continuer</button></div>
@@ -284,7 +284,18 @@
     data.set('event', type);
     fetch(securityForm.action, {method: 'POST', body: data, credentials: 'same-origin', keepalive: true}).catch(() => {});
   }
-  window.addEventListener('blur', () => logInfo('FOCUS_LOSS'));
+  // Alt+Tab ne masque pas la page : seule une perte de focus le signale. Brève, elle est journalisée ;
+  // prolongée, c'est une violation. Le délai doit rester sous l'anti-doublon du serveur (3 s),
+  // sinon un même geste (Échap, Ctrl+T) compterait deux fois.
+  // ponytail: des allers-retours de moins de 2 s ne comptent jamais ; cumuler les absences si cela se voit au journal.
+  const FOCUS_AWAY_MS = 2000;
+  let awayTimer;
+  window.addEventListener('blur', () => {
+    logInfo('FOCUS_LOSS');
+    clearTimeout(awayTimer);
+    awayTimer = setTimeout(() => { if (!document.hasFocus()) reportViolation('FOCUS_AWAY'); }, FOCUS_AWAY_MS);
+  });
+  window.addEventListener('focus', () => clearTimeout(awayTimer));
   const windowSize = () => window.innerWidth + 'x' + window.innerHeight;
   let size = null, resizeTimer;  // taille de référence, prise une fois le plein écran installé
   window.addEventListener('resize', () => {

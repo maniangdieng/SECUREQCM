@@ -5,7 +5,7 @@ Règles conservées de la version d'origine :
 - chronomètre contrôlé côté serveur (échéance globale + échéance par question) ;
 - temps par question = durée totale ÷ nombre de questions (secondes réparties exactement) ;
 - passage séquentiel sans retour en arrière, réponse blanche à l'expiration ;
-- 1re violation (changement d'onglet / sortie du plein écran) = avertissement,
+- 1re violation (changement d'onglet / sortie du plein écran / fenêtre quittée) = avertissement,
   2e violation = clôture TERMINATED_SECURITY définitive pour cet examen.
 
 Ajouts :
