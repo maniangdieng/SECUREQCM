@@ -79,8 +79,8 @@ créé et doit être réinstallé partout.
 - HSTS est réglé sur une heure. Quand le certificat est définitif et que tout fonctionne, passer à `31536000`
   (un an) dans `deploy/Caddyfile`, puis `docker compose restart caddy`. Un navigateur qui a reçu cette consigne
   refusera le HTTP pendant toute la durée.
-- `GUNICORN_CMD_ARGS="--workers 4"` dans `.env` règle le nombre de processus de l'application. Une option
-  `--workers` écrite dans la commande de `docker-compose.yml` l'emporte sur cette variable.
+- `GUNICORN_WORKERS` dans `.env` règle le nombre de processus de l'application (environ 2 × cœurs + 1).
+  Ne pas passer `--workers` par `GUNICORN_CMD_ARGS` : la commande de `docker-compose.yml` l'emporte.
 - Planifier la clôture des tentatives expirées, chaque minute (cron du serveur, depuis le dossier du projet) :
   `* * * * * cd /chemin/du/projet && docker compose exec -T web python manage.py close_expired_attempts`
 

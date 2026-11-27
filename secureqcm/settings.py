@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "qcm.apps.QcmConfig",
+    "axes",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -43,6 +44,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Doit rester en dernier (django-axes).
+    "axes.middleware.AxesMiddleware",
 ]
 ROOT_URLCONF = "secureqcm.urls"
 TEMPLATES = [{
@@ -94,6 +97,28 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/accounts/login/"
+
+# Limitation des tentatives de connexion (django-axes). Voir l'issue #6.
+# Le blocage porte sur le couple identifiant + adresse IP : pendant un examen,
+# un étudiant qui se trompe ne bloque ni ses camarades (même salle, parfois même
+# IP derrière un routeur) ni son propre compte depuis un autre poste.
+AUTHENTICATION_BACKENDS = [
+    "qcm.auth_backends.AxesBackend",  # en premier
+    "django.contrib.auth.backends.ModelBackend",
+]
+AXES_ENABLED = os.getenv("AXES_ENABLED", "1") == "1"
+AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
+AXES_COOLOFF_TIME = int(os.getenv("AXES_COOLOFF_MINUTES", "15")) / 60  # en heures
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
+AXES_RESET_ON_SUCCESS = True
+# Un essai pendant le blocage ne relance pas les 15 minutes (sinon l'étudiant qui réessaie reste bloqué).
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+# Derrière un reverse proxy (Caddy en HTTPS), lire la vraie IP dans X-Forwarded-For.
+# À activer uniquement quand l'application n'est joignable QUE par le proxy (voir qcm/client_ip.py).
+if os.getenv("AXES_BEHIND_PROXY", "0") == "1":
+    AXES_CLIENT_IP_CALLABLE = "qcm.client_ip.client_ip_behind_proxy"
+AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
+AXES_VERBOSE = False
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
