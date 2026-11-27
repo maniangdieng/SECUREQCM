@@ -1,8 +1,9 @@
-import json
+from decimal import Decimal
 from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from qcm.importers import check_questions, parse_json
 from qcm.models import Exam, Question, Option, Classroom, Profile
 from qcm.services import enroll_audience
 
@@ -29,15 +30,13 @@ class Command(BaseCommand):
         if not 5 <= opts["seconds"] <= 300:
             raise CommandError("Le temps par question doit être compris entre 5 et 300 secondes.")
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            raise CommandError(f"JSON illisible : {exc}")
-        questions = data.get("questions", [])
-        if not questions:
-            raise CommandError("Le fichier ne contient aucune question.")
-        for q in questions:
-            if len(q.get("options", [])) != 4 or sum(1 for o in q["options"] if o.get("correct")) != 1:
-                raise CommandError(f"Question {q.get('number')} : il faut 4 propositions et exactement une bonne réponse.")
+            data, questions = parse_json(path.read_bytes())
+            for q in questions:
+                if not q["correct"]:  # pas de prévisualisation ici : le corrigé doit être complet
+                    q.setdefault("errors", []).append("aucune bonne réponse")
+            check_questions(questions)
+        except (OSError, ValueError) as exc:
+            raise CommandError(str(exc))
         User = get_user_model()
         try:
             teacher = User.objects.get(username=opts["teacher"])
@@ -52,10 +51,10 @@ class Command(BaseCommand):
                 raise CommandError(f"Classe introuvable : {opts['classroom']}")
         if opts["publish"] and not classroom and not opts["level"]:
             raise CommandError("--publish exige --level ou --classroom pour savoir quels étudiants affecter.")
-        title = opts["title"] or data.get("title", "QCM importé")
+        title = str(opts["title"] or data.get("title") or "QCM importé")[:200]
         exam = Exam.objects.create(
             title=title,
-            description=data.get("instructions", "") + "\nSource : " + data.get("source", ""),
+            description=f"{data.get('instructions', '')}\nSource : {data.get('source', '')}",
             teacher=teacher,
             duration_minutes=opts["duration"],
             published=bool(opts["publish"]),
@@ -67,13 +66,14 @@ class Command(BaseCommand):
         )
         for qdata in questions:
             q = Question.objects.create(
-                exam=exam, text=qdata["text"], question_type="SINGLE",
-                duration_seconds=opts["seconds"], points=qdata.get("points", 1),
+                exam=exam, text=qdata["text"],
+                question_type=qdata.get("type") or ("MULTIPLE" if len(qdata["correct"]) > 1 else "SINGLE"),
+                duration_seconds=opts["seconds"], points=Decimal(qdata["points"]),
                 position=qdata["number"],
             )
             for index, option in enumerate(qdata["options"], start=1):
                 Option.objects.create(question=q, text=option["text"],
-                                      is_correct=bool(option["correct"]), position=index)
+                                      is_correct=option["letter"] in qdata["correct"], position=index)
         if exam.published:
             enroll_audience(exam)
         self.stdout.write(self.style.SUCCESS(

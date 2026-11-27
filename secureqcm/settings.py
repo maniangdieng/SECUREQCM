@@ -71,7 +71,14 @@ if os.getenv("POSTGRES_HOST"):
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }}
 else:
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+        # SQLite ignore select_for_update : en mode IMMEDIATE, chaque transaction prend le verrou
+        # d'écriture dès son ouverture, et les requêtes simultanées (ex. deux événements de
+        # sécurité au même instant) attendent leur tour au lieu d'échouer en « database is locked ».
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
+    }}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -115,6 +122,14 @@ AXES_VERBOSE = False
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
+# Sessions (cahier §13) : fermeture après N heures d'inactivité. Chaque requête repousse l'échéance ;
+# le minimum dépasse la durée maximale d'un examen (180 min), qui n'est donc jamais coupé.
+SESSION_HOURS = int(os.getenv("DJANGO_SESSION_HOURS", "8"))
+if SESSION_HOURS < 4:
+    raise RuntimeError("DJANGO_SESSION_HOURS doit valoir au moins 4.")
+SESSION_COOKIE_AGE = SESSION_HOURS * 3600
+SESSION_SAVE_EVERY_REQUEST = True
+
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
@@ -123,6 +138,17 @@ if os.getenv("DJANGO_SECURE_COOKIES", "0") == "1":
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# E-mails (réinitialisation du mot de passe). Console en développement ;
+# en production : DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend.
+EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("DJANGO_EMAIL_USE_TLS", "1") == "1"
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "Secure QCM <ne-pas-repondre@localhost>")
 
 # Import de QCM : limite applicative des fichiers téléversés (15 Mo).
 DATA_UPLOAD_MAX_MEMORY_SIZE = 16 * 1024 * 1024

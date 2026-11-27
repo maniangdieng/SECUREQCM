@@ -1,5 +1,7 @@
+from django import forms
 from django.contrib import messages
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.views import LoginView
@@ -7,10 +9,29 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.urls import reverse
 
-from ..models import Profile, Exam, ExamEnrollment
+from ..models import Profile
 from ..permissions import role
+from ..services import enroll_student_in_level_exams
 
 DASHBOARD_BY_ROLE = {"ADMIN": "admin_dashboard", "TEACHER": "teacher_dashboard", "STUDENT": "student_dashboard"}
+
+
+class EmailForm(forms.ModelForm):
+    """Seul l'e-mail est modifiable : nom et matricule identifient l'étudiant dans les résultats.
+    Le mot de passe est redemandé, car cette adresse permet de réinitialiser le compte."""
+    password = forms.CharField(label="Mot de passe actuel", strip=False,
+                               widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}))
+
+    class Meta:
+        model = User
+        fields = ["email"]
+        labels = {"email": "Adresse e-mail"}
+
+    def clean_password(self):
+        password = self.cleaned_data["password"]
+        if not self.instance.check_password(password):
+            raise ValidationError("Mot de passe actuel incorrect.")
+        return password
 
 
 class UnifiedLoginView(LoginView):
@@ -69,16 +90,25 @@ def student_register(request):
         else:
             user = User.objects.create_user(username=username, password=password, email=email,
                                             first_name=first_name, last_name=last_name)
-            profile = Profile.objects.get(user=user)
+            profile = user.profile
             profile.role = "STUDENT"
             profile.student_number = student_number
             profile.study_level = study_level
             profile.save()
             # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
-            for exam in Exam.objects.filter(published=True, is_archived=False, audience_mode="LEVEL", target_level=study_level):
-                ExamEnrollment.objects.get_or_create(exam=exam, student=user, defaults={"source": "LEVEL"})
+            enroll_student_in_level_exams(user)
             # Plusieurs backends sont configurés (django-axes) : préciser lequel a authentifié.
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
             return redirect("student_dashboard")
     return render(request, "registration/register.html", {"levels": Profile.LEVEL_CHOICES, "form_data": form_data})
+
+
+@login_required
+def profile(request):
+    form = EmailForm(request.POST or None, instance=User.objects.get(pk=request.user.pk))
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Votre adresse e-mail a été enregistrée.")
+        return redirect("profile")
+    return render(request, "registration/profile.html", {"form": form})

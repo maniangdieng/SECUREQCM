@@ -27,11 +27,45 @@ export DJANGO_CSRF_TRUSTED_ORIGINS=http://192.168.1.12:8000
 python manage.py runserver 0.0.0.0:8000
 ```
 
+## Données de démonstration
+
+Pour tester ou faire une démo sans vraies données :
+
+```bash
+python manage.py seed_demo                 # 1 admin, 2 enseignants, 20 étudiants, 2 classes, 3 examens
+python manage.py seed_demo --reset         # repartir de zéro
+python manage.py seed_demo --reset --students 200   # pour un test de charge
+```
+
+Tous les comptes commencent par `demo_` (`demo_admin`, `demo_prof1`, `demo_etu001`…), mot de passe commun
+`Demo-SecureQCM-2026`. Examens publiés : codes d'accès `DEMOGL01` et `DEMOBD01`. La commande refuse de s'exécuter
+avec `DJANGO_DEBUG=0` sauf `--force`. `--reset` ne supprime que les comptes créés par la commande
+(identifiant `demo_…` **et** e-mail `<identifiant>@demo.invalid`) : un vrai compte dont l'identifiant commence par
+`demo_` n'est jamais touché.
+
+> ⚠️ `demo_admin` est administrateur avec un mot de passe connu : ne jamais laisser les données de démo sur le
+> serveur d'un vrai examen.
+
 ## Tests
 
 ```bash
 python manage.py test qcm
 ```
+
+## Qualité du code
+
+La CI (GitHub Actions) lance à chaque push et pull request : `ruff check .`, `python manage.py check`,
+la vérification des migrations oubliées et `python manage.py test qcm`. Une PR ne doit pas être fusionnée si la CI est rouge.
+
+En local, avant de pousser :
+
+```bash
+pip install ruff pre-commit
+pre-commit install        # une seule fois : ruff tournera à chaque commit
+ruff check .              # ou à la main
+```
+
+Si vous modifiez `models.py`, versionnez la migration générée (`python manage.py makemigrations`), sinon la CI échoue.
 
 ## Déploiement (Docker + PostgreSQL)
 
@@ -39,7 +73,19 @@ python manage.py test qcm
 2. `docker compose up --build`
 3. `docker compose exec web python manage.py createsuperuser`
 
+Ces étapes servent la page en HTTP sur le port 8000 : pour de vrais utilisateurs, ajouter [HTTPS](docs/HTTPS.md).
+
 Avant un examen réel : [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md).
+
+## Documentation
+
+| Pour qui | Document |
+|---|---|
+| Administrateur | [Guide](docs/GUIDE_ADMINISTRATEUR.md) · [HTTPS](docs/HTTPS.md) · [Sauvegarde et restauration](docs/SAUVEGARDE.md) |
+| Enseignant | [Guide](docs/GUIDE_ENSEIGNANT.md) |
+| Étudiant | [Guide](docs/GUIDE_ETUDIANT.md) |
+| Équipe technique | [Documentation technique](docs/DOCUMENTATION_TECHNIQUE.md) · [Rapport de validation](docs/RAPPORT_VALIDATION.md) |
+| Établissement | [Données personnelles](docs/DONNEES_PERSONNELLES.md) |
 
 ## Blocage après échecs de connexion
 
@@ -65,3 +111,12 @@ Les tentatives sont aussi visibles et supprimables dans `/admin/` (section *Axes
 
 Un navigateur ordinaire ne peut pas verrouiller le poste. La détection (plein écran, changement d'onglet) est
 indicative et peut produire des faux positifs. Pour un examen à fort enjeu, intégrer Safe Exam Browser (voir perspectives).
+
+## Règles de contribution
+
+- Une branche par issue, puis une PR vers `main` (« Closes #N ») ; `main` est protégée : **PR et approbation d'un autre membre obligatoires**.
+- **Chaque commit est signé de son auteur humain** : configurez `git config user.name` et `git config user.email` avec votre compte GitHub.
+  Aucun outil (assistant de code, générateur…) ne doit apparaître comme auteur, committer ou co-auteur :
+  pas de ligne `Co-Authored-By` ni de mention d'outil dans les commits et les PR. La CI le vérifie (`attribution.yml`)
+  et le réglage partagé `.claude/settings.json` désactive ces mentions pour ceux qui utilisent Claude Code.
+- Jamais de vraies données dans le dépôt (`db.sqlite3`, `.env`, exports).

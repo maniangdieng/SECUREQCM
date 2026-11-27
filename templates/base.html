@@ -29,7 +29,10 @@
     {% endwith %}
     <div class="usermenu">
       <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Admin{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
-      <span class="avatar" title="{{ user.get_full_name|default:user.username }}">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
+      <a class="profile-link" href="{% url 'profile' %}" title="{{ user.get_full_name|default:user.username }}">
+        <span class="avatar" aria-hidden="true">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
+        <span class="profile-label">Mon profil</span>
+      </a>
       <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn ghost sm" type="submit">Déconnexion</button></form>
     </div>
     {% endif %}

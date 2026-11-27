@@ -1,0 +1,8 @@
+# Installation (une seule fois) : pip install pre-commit && pre-commit install
+# Ensuite ruff tourne automatiquement à chaque commit.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6  # même version que la CI (.github/workflows/ci.yml)
+    hooks:
+      - id: ruff
+        args: [--fix]
