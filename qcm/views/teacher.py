@@ -13,12 +13,14 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
+from ..importers import LETTERS
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
 from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
 from ..services import add_turn_in_counts, audit, close_expired_attempts, enroll_audience
 from .common import class_tab, redirect_back
 
-MAX_OPTIONS = 6
+# Même limite que l'import : le formulaire de modification ne doit perdre aucune proposition.
+MAX_OPTIONS = len(LETTERS)
 
 
 def manageable_classrooms(user):

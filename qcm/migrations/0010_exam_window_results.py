@@ -4,8 +4,8 @@ from django.db import migrations, models
 
 
 def keep_existing_results_visible(apps, schema_editor):
-    """Avant #12, la note s'affichait dès la fin de l'examen : les examens existants restent « publiés »."""
-    apps.get_model("qcm", "Exam").objects.update(results_published=True)
+    """Avant #12, la note s'affichait dès la fin de l'examen : les examens déjà publiés gardent leurs notes visibles."""
+    apps.get_model("qcm", "Exam").objects.filter(published=True).update(results_published=True)
 
 
 class Migration(migrations.Migration):

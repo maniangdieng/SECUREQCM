@@ -61,18 +61,6 @@
       {% endif %}
     </div>
 
-    {% if not exam.closed_at and not exam.is_archived %}
-    <div class="card flat">
-      <h3>Fenêtre d'ouverture</h3>
-      <form method="post" action="{% url 'update_exam_window' exam.id %}">
-        {% csrf_token %}
-        <label>Ouverture<input type="datetime-local" name="opens_at" {% if exam.opens_at %}value="{{ exam.opens_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
-        <label>Fermeture<input type="datetime-local" name="closes_at" {% if exam.closes_at %}value="{{ exam.closes_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
-        <button class="btn ghost sm" type="submit">Enregistrer</button>
-      </form>
-      <p class="help">Vide : pas de limite. Une tentative commencée avant la fermeture va au bout de sa durée.</p>
-    </div>
-
     <div class="card flat">
       <h3>Dupliquer</h3>
       <form method="post" action="{% url 'duplicate_exam' exam.id %}">
@@ -86,6 +74,18 @@
         <button class="btn ghost sm" type="submit">Dupliquer en brouillon</button>
       </form>
       <p class="help">Copie les questions et les réglages, avec un nouveau code d'accès. Aucune tentative ni inscription n'est copiée.</p>
+    </div>
+
+    {% if not exam.closed_at and not exam.is_archived %}
+    <div class="card flat">
+      <h3>Fenêtre d'ouverture</h3>
+      <form method="post" action="{% url 'update_exam_window' exam.id %}">
+        {% csrf_token %}
+        <label>Ouverture<input type="datetime-local" name="opens_at" {% if exam.opens_at %}value="{{ exam.opens_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
+        <label>Fermeture<input type="datetime-local" name="closes_at" {% if exam.closes_at %}value="{{ exam.closes_at|date:'Y-m-d\TH:i' }}"{% endif %}></label>
+        <button class="btn ghost sm" type="submit">Enregistrer</button>
+      </form>
+      <p class="help">Vide : pas de limite. Une tentative commencée avant la fermeture va au bout de sa durée.</p>
     </div>
 
     <div class="card flat">

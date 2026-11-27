@@ -39,7 +39,7 @@ La règle choisie est affichée aux étudiants avant le démarrage et sur chaque
 
 ### Saisir les questions
 
-**Ajouter une question** : énoncé, réponse unique ou multiple, points (0,1 à 100), 2 à 6 propositions, au moins une
+**Ajouter une question** : énoncé, réponse unique ou multiple, points (0,1 à 100), 2 à 8 propositions, au moins une
 bonne réponse.
 
 ### Importer un sujet

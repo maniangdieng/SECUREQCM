@@ -1,6 +1,8 @@
 from datetime import timedelta
 from decimal import Decimal
+from importlib import import_module
 
+from django.apps import apps
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
@@ -148,6 +150,27 @@ class DuplicateExamTests(TestCase):
         self.assertEqual(Exam.objects.count(), 1)
 
 
+    def test_duplicate_form_stays_available_on_closed_and_archived_exams(self):
+        url = f"/teacher/exams/{self.exam.id}/duplicate/"
+        for state in ({"closed_at": timezone.now(), "is_archived": False}, {"closed_at": None, "is_archived": True}):
+            with self.subTest(state=state):
+                Exam.objects.filter(pk=self.exam.pk).update(**state)
+                self.assertContains(self.client.get(f"/teacher/exams/{self.exam.id}/"), url)
+
+
+class ResultsMigrationTests(TestCase):
+    def test_only_published_exams_keep_visible_results(self):
+        teacher = make_user("migration_teacher", "TEACHER")
+        published = Exam.objects.create(title="Publié", teacher=teacher, published=True)
+        draft = Exam.objects.create(title="Brouillon", teacher=teacher)
+        migration = import_module("qcm.migrations.0010_exam_window_results")
+        migration.keep_existing_results_visible(apps, None)
+        published.refresh_from_db()
+        draft.refresh_from_db()
+        self.assertTrue(published.results_published)
+        self.assertFalse(draft.results_published)
+
+
 class QuestionEditTests(TestCase):
     def setUp(self):
         self.teacher = make_user("edit_teacher", "TEACHER")
@@ -204,6 +227,33 @@ class QuestionEditTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.question.refresh_from_db()
         self.assertEqual(self.question.text, "Ancien")
+
+    def test_edit_form_prefills_points_in_a_format_number_inputs_accept(self):
+        self.question.points = Decimal("2.5")
+        self.question.save(update_fields=["points"])
+        response = self.client.get(f"/teacher/exams/{self.exam.id}/question/{self.question.id}/edit/")
+        self.assertContains(response, 'value="2.50"')
+
+    def test_edit_form_accepts_two_decimal_points_like_the_import(self):
+        self.question.points = Decimal("0.25")
+        self.question.save(update_fields=["points"])
+        response = self.client.get(f"/teacher/exams/{self.exam.id}/question/{self.question.id}/edit/")
+        self.assertContains(response, 'step="0.01" value="0.25"')
+
+    def test_saving_edit_form_keeps_all_eight_imported_options(self):
+        for position, letter in enumerate("CDEFGH", 3):
+            Option.objects.create(question=self.question, text=letter, is_correct=letter == "H", position=position)
+        url = f"/teacher/exams/{self.exam.id}/question/{self.question.id}/edit/"
+        rows = self.client.get(url).context["option_rows"]
+        response = self.client.post(url, {
+            "text": "Corrigé", "kind": Question.MULTIPLE, "points": "1",
+            "option_text": [row["text"] for row in rows],
+            "correct": [str(i) for i, row in enumerate(rows) if row["correct"]],
+        })
+        self.assertEqual(response.status_code, 302)
+        options = self.question.options.order_by("position", "id")
+        self.assertEqual([o.text for o in options], ["4", "5", "C", "D", "E", "F", "G", "H"])
+        self.assertEqual([o.text for o in options if o.is_correct], ["4", "H"])
 
     def test_can_reorder_questions_with_up_and_down(self):
         second = Question.objects.create(exam=self.exam, text="Second", question_type=Question.SINGLE, points=Decimal("1"), position=2)
