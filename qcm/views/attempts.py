@@ -15,7 +15,9 @@ Ajouts :
 - #3 : l'enseignant peut rouvrir une tentative clôturée pour sécurité (temps restant rendu,
        compteur de violations remis à zéro, trace dans le journal) ;
 - #23 : consignes confirmées avant le démarrage, sauvegarde automatique de la sélection,
-        et toute modification d'une tentative se fait sous verrou (services.locked_attempts).
+        et toute modification d'une tentative se fait sous verrou (services.locked_attempts) ;
+- #24 : pertes de focus et redimensionnements journalisés sans être comptés ; chaque événement
+        garde le compteur de violations au moment où il est écrit.
 """
 import random
 from datetime import timedelta
@@ -37,6 +39,7 @@ from ..services import (RESUME_EVENT, VIOLATION_LABELS, audit, build_grading, ex
                         locked_attempts, question_time_seconds, advance, close_attempt, apply_deadlines)
 
 SECURITY_EVENTS = set(VIOLATION_LABELS)
+INFO_EVENTS = {"FOCUS_LOSS", "WINDOW_RESIZE"}  # journalisés pour information, jamais comptés
 MAX_VIOLATIONS = 2
 VIOLATION_DEBOUNCE_SECONDS = 3
 IGNORED_EVENT = "VIOLATION_IGNORED"
@@ -257,6 +260,11 @@ def save_answer(request, attempt_id):
     return JsonResponse({"status": attempt.status, "saved": True})
 
 
+def _log_event(attempt, event_type, violation_count, **details):
+    SecurityEvent.objects.create(attempt=attempt, event_type=event_type,
+                                 details={**details, "violation_count": violation_count})
+
+
 @json_login_required
 @require_POST
 def security_event(request, attempt_id):
@@ -266,16 +274,23 @@ def security_event(request, attempt_id):
         # sont traités l'un après l'autre, ce qui rend l'anti-doublon fiable.
         attempt = get_object_or_404(locked_attempts(), pk=attempt_id, student=request.user)
         apply_deadlines(attempt)  # un événement reçu après la fin du temps ne change plus rien
-        if attempt.status != Attempt.IN_PROGRESS or event not in SECURITY_EVENTS:
+        if attempt.status != Attempt.IN_PROGRESS or event not in SECURITY_EVENTS | INFO_EVENTS:
             return JsonResponse({"status": attempt.status})
         violations = counted_violations(attempt)
+        if event in INFO_EVENTS:
+            # ponytail: une ligne par type toutes les 3 s ; un client modifié peut insister,
+            # plafonner par tentative si le journal grossit trop.
+            since = timezone.now() - timedelta(seconds=VIOLATION_DEBOUNCE_SECONDS)
+            if not attempt.security_events.filter(event_type=event, created_at__gt=since).exists():
+                _log_event(attempt, event, violations.count(), source="browser-client")
+            return JsonResponse({"status": Attempt.IN_PROGRESS})
         previous = violations.order_by("-created_at").first()
         if previous and (timezone.now() - previous.created_at).total_seconds() < VIOLATION_DEBOUNCE_SECONDS:
-            SecurityEvent.objects.create(attempt=attempt, event_type=IGNORED_EVENT, details={
-                "source": "browser-client", "event": event, "reason": "doublon de la violation précédente"})
+            _log_event(attempt, IGNORED_EVENT, violations.count(), source="browser-client",
+                       event=event, reason="doublon de la violation précédente")
             return JsonResponse({"status": Attempt.IN_PROGRESS, "duplicate": True, "count": violations.count()})
-        SecurityEvent.objects.create(attempt=attempt, event_type=event, details={"source": "browser-client"})
-        count = violations.count()
+        count = violations.count() + 1
+        _log_event(attempt, event, count, source="browser-client")
         if count >= MAX_VIOLATIONS:
             close_attempt(attempt, Attempt.TERMINATED_SECURITY)
             return JsonResponse({"status": "TERMINATED_SECURITY",
@@ -325,13 +340,9 @@ def authorize_resume(request, attempt_id):
     attempt.question_deadline = min(attempt.global_deadline, now + question_left)
     attempt.save(update_fields=["status", "ended_at", "global_deadline", "question_started_at", "question_deadline"])
     audit(request.user, "Reprise autorisée", attempt, reason)
-    SecurityEvent.objects.create(attempt=attempt, event_type=RESUME_EVENT, details={
-        "by_id": request.user.id,
-        "by": request.user.get_full_name() or request.user.username,
-        "reason": reason,
-        "closed_at": closed_at.isoformat(),
-        "seconds_restored": int(global_left.total_seconds()),
-    })
+    _log_event(attempt, RESUME_EVENT, 0,  # le compteur repart à zéro
+               by_id=request.user.id, by=request.user.get_full_name() or request.user.username, reason=reason,
+               closed_at=closed_at.isoformat(), seconds_restored=int(global_left.total_seconds()))
     minutes, seconds = divmod(int(global_left.total_seconds()), 60)
     messages.success(request, f"Reprise autorisée : {attempt.student.get_full_name() or attempt.student.username} "
                               f"dispose de {minutes} min {seconds:02d} s. Le compteur de violations repart à zéro.")

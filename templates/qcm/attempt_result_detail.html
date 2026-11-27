@@ -33,6 +33,8 @@
       {% if ev.event_type == "TAB_SWITCH" %}<span class="badge danger">Violation</span> Changement d'onglet
       {% elif ev.event_type == "FULLSCREEN_EXIT" %}<span class="badge danger">Violation</span> Sortie du plein écran
       {% elif ev.event_type == "VIOLATION_IGNORED" %}<span class="badge">Ignoré</span> Doublon de la violation précédente (même action)
+      {% elif ev.event_type == "FOCUS_LOSS" %}<span class="badge">Information</span> Perte de focus de la fenêtre
+      {% elif ev.event_type == "WINDOW_RESIZE" %}<span class="badge">Information</span> Redimensionnement de la fenêtre
       {% elif ev.event_type == "RESUME_AUTHORIZED" %}<span class="badge ok">Reprise autorisée</span> par {{ ev.details.by }} — motif : « {{ ev.details.reason }} »
       {% else %}{{ ev.event_type }}{% endif %}
       </span>
