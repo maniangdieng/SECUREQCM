@@ -1,8 +1,7 @@
 
 from django.test import TestCase
 from django.contrib.auth.models import User
-from django.urls import reverse
-from .models import Profile, Exam, ExamEnrollment, Question, Option
+from .models import Exam, ExamEnrollment, Question, Option
 class BasicRoleTests(TestCase):
     def test_profile_created(self):
         u=User.objects.create_user(username="student",password="StrongPass123!")

@@ -3,4 +3,4 @@ class QcmConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "qcm"
     def ready(self):
-        import qcm.signals
+        import qcm.signals  # noqa: F401  (enregistre les signaux)

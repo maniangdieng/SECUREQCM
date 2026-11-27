@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Résultats imprimables – {{ exam.title }}{% endblock %}
+{% block appbar %}{% endblock %}
+{% block content %}
+<style>@page { size: A4 landscape; margin: 12mm; }</style>
+<div class="row no-print" style="gap:8px;margin-bottom:18px">
+  <button class="btn" type="button" data-print>Imprimer / enregistrer en PDF</button>
+  <a class="btn ghost" href="{% url 'exam_results' exam.id %}">Retour aux résultats</a>
+</div>
+
+<h1>Résultats – {{ exam.title }}</h1>
+<p class="muted">Examen n° {{ exam.id }}{% if exam.classroom %} · {{ exam.classroom.name }}{% endif %} · {{ exam.duration_minutes }} minutes · édité le {{ printed_at|date:"d/m/Y H:i" }}</p>
+
+{% include "qcm/_results_stats.html" %}
+
+<div class="table-wrap print-compact"><table class="small">
+  <thead><tr><th>Étudiant</th><th>Matricule</th><th>Statut</th><th>Début</th><th>Durée (min)</th><th>Justes / Fausses / Blanches</th><th>Score</th><th>Note /20</th><th>Violations</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{% if r.attempt.student.get_full_name %}{{ r.attempt.student.last_name }} {{ r.attempt.student.first_name }}{% else %}{{ r.attempt.student.username }}{% endif %}</td>
+    <td class="mono">{{ r.attempt.student.profile.student_number|default:"—" }}</td>
+    <td>{{ r.attempt.get_status_display }}</td>
+    <td>{{ r.attempt.started_at|date:"d/m/Y H:i" }}</td>
+    <td>{% if r.minutes is None %}—{% else %}{{ r.minutes|floatformat }}{% endif %}</td>
+    <td>{{ r.right_count }} / {{ r.wrong_count }} / {{ r.blank_count }}</td>
+    <td>{{ r.score|floatformat:2 }} / {{ r.max_score|floatformat:2 }}</td>
+    <td><strong>{{ r.final_grade|floatformat:2 }}</strong>{% if r.attempt.status == "IN_PROGRESS" %} (provisoire){% endif %}</td>
+    <td>{{ r.violation_detail|default:"—" }}</td>
+  </tr>
+  {% empty %}<tr><td colspan="9" class="muted center">Aucune tentative pour cet examen.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

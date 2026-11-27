@@ -66,6 +66,11 @@ def can_manage_classroom(user, classroom):
     return is_admin(user) or is_classroom_teacher(user, classroom)
 
 
+def can_authorize_resume(user, attempt):
+    """Rouvrir une tentative clôturée pour sécurité : enseignant de l'examen ou administrateur (issue #3)."""
+    return can_manage_exam(user, attempt.exam)
+
+
 def can_manage_exam(user, exam):
     """Auteur de l'examen, enseignant de la classe de l'examen, ou administrateur."""
     if is_admin(user):

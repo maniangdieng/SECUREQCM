@@ -68,7 +68,14 @@ if os.getenv("POSTGRES_HOST"):
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }}
 else:
-    DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+        # SQLite ignore select_for_update : en mode IMMEDIATE, chaque transaction prend le verrou
+        # d'écriture dès son ouverture, et les requêtes simultanées (ex. deux événements de
+        # sécurité au même instant) attendent leur tour au lieu d'échouer en « database is locked ».
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
+    }}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -89,6 +96,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
+
+# Sessions (cahier §13) : fermeture après N heures d'inactivité. Chaque requête repousse l'échéance ;
+# le minimum dépasse la durée maximale d'un examen (180 min), qui n'est donc jamais coupé.
+SESSION_HOURS = int(os.getenv("DJANGO_SESSION_HOURS", "8"))
+if SESSION_HOURS < 4:
+    raise RuntimeError("DJANGO_SESSION_HOURS doit valoir au moins 4.")
+SESSION_COOKIE_AGE = SESSION_HOURS * 3600
+SESSION_SAVE_EVERY_REQUEST = True
 
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"

@@ -1,12 +1,12 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Attempt, ClassroomMembership
 from ..permissions import role, is_classroom_student
-from ..services import visible_exams_for_student
+from ..services import close_expired_attempts, visible_exams_for_student
 from .common import redirect_back
 
 
@@ -27,6 +27,7 @@ def annotate_exams_for_student(user, exams):
 def student_dashboard(request):
     if role(request.user) != "STUDENT":
         return HttpResponseForbidden("Accès réservé aux étudiants.")
+    close_expired_attempts(Attempt.objects.filter(student=request.user))
     memberships = (ClassroomMembership.objects
                    .filter(user=request.user, role=ClassroomMembership.STUDENT, classroom__is_archived=False)
                    .select_related("classroom", "classroom__owner"))
@@ -48,13 +49,17 @@ def join_exam_by_code(request):
     code = request.POST.get("access_code", "").strip().upper()
     exam_id = request.POST.get("exam_id", "").strip()
     back = redirect_back(request, "student_dashboard")
-    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False, pk=exam_id).first()
+    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False,
+                                closed_at__isnull=True, pk=exam_id).first()
             if exam_id.isdigit() else None)
     if not exam:
         messages.error(request, "Code d'examen invalide ou examen non disponible.")
         return back
     profile = request.user.profile
-    if exam.audience_mode == "LEVEL":
+    individual = ExamEnrollment.objects.filter(exam=exam, student=request.user, source="LIST").first()
+    if individual:
+        enrollment = individual
+    elif exam.audience_mode == "LEVEL":
         if not exam.target_level or not profile.study_level or profile.study_level != exam.target_level:
             messages.error(request, "Cet examen n'est pas destiné à votre niveau d'études.")
             return back
@@ -71,7 +76,7 @@ def join_exam_by_code(request):
             return back
     if not enrollment.code_verified:
         enrollment.code_verified = True
-        if exam.audience_mode == "LEVEL":
+        if exam.audience_mode == "LEVEL" and not individual:
             enrollment.source = "CODE"
         enrollment.save(update_fields=["code_verified", "source"])
     messages.success(request, f"Code validé. Vous pouvez accéder à : {exam.title}.")
