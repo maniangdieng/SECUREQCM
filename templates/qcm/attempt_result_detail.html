@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>{{ attempt.student.get_full_name|default:attempt.student.username }}</h1>
-    <p>{{ attempt.get_status_display }} · {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points · <strong>{{ final_grade|floatformat:2 }} / 20</strong></p>
+    <p>{{ attempt.get_status_display }} · {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points · <strong>{{ final_grade|floatformat:2 }} / 20</strong> · choix multiples : {{ scoring_label|lower }}</p>
   </div>
 </div>
 

@@ -6,12 +6,15 @@
 </div>
 <div class="page-head">
   <div>
-    <h1>{{ exam.title }} <span class="badge {% if exam.is_archived %}archived{% elif exam.published %}published{% else %}draft{% endif %}">{{ exam.state_label }}</span></h1>
+    <h1>{{ exam.title }} <span class="badge {{ exam.state_badge }}">{{ exam.state_label }}</span></h1>
     <p>{{ exam.duration_minutes }} minutes · {{ questions|length }} question{{ questions|length|pluralize }} · {{ exam.get_audience_mode_display }}{% if exam.target_level %} · {{ exam.get_target_level_display }}{% endif %}</p>
   </div>
   <div class="actions">
     {% if exam.published %}
       <a class="btn" href="{% url 'exam_results' exam.id %}">Voir les résultats</a>
+      {% if not exam.closed_at and not exam.is_archived %}
+      <form method="post" action="{% url 'close_exam' exam.id %}" data-confirm="Clôturer l'examen ? Plus aucune nouvelle tentative ne sera possible. Les tentatives en cours pourront se terminer.">{% csrf_token %}<button class="btn ghost" type="submit">Clôturer</button></form>
+      {% endif %}
     {% else %}
       <form method="post" action="{% url 'publish_exam' exam.id %}" data-confirm="Publier l'examen ? Les questions ne pourront plus être modifiées.">{% csrf_token %}<button class="btn" type="submit">Publier l'examen</button></form>
     {% endif %}
@@ -44,6 +47,21 @@
     </div>
 
     <div class="card flat">
+      <h3>Notation et ordre</h3>
+      {% if has_attempts %}
+        <p class="small mb-0">Choix multiples : <strong>{{ exam.get_multiple_scoring_display|lower }}</strong> · questions : {{ exam.shuffle_questions|yesno:"ordre aléatoire,ordre fixe" }} · réponses : {{ exam.shuffle_answers|yesno:"ordre aléatoire,ordre fixe" }}.</p>
+        <p class="help">Verrouillés : des tentatives existent.</p>
+      {% else %}
+      <form method="post" action="{% url 'update_exam_settings' exam.id %}">
+        {% csrf_token %}
+        {% include "qcm/_exam_settings_fields.html" %}
+        <button class="btn ghost sm" type="submit">Enregistrer</button>
+      </form>
+      <p class="help">La règle de notation est annoncée à l'étudiant avant et pendant l'examen.</p>
+      {% endif %}
+    </div>
+
+    <div class="card flat">
       <h3>Liste d'étudiants (CSV)</h3>
       <p class="help">Colonne <code>matricule</code> obligatoire. L'import bascule l'examen en mode « étudiants sélectionnés ».</p>
       <form method="post" enctype="multipart/form-data" action="{% url 'import_exam_students' exam.id %}">
@@ -56,6 +74,11 @@
     {% if not has_attempts %}
     <form method="post" action="{% url 'delete_exam' exam.id %}" data-confirm="Supprimer définitivement cet examen et toutes ses questions ?">
       {% csrf_token %}<button class="btn danger-ghost block" type="submit">Supprimer l'examen</button>
+    </form>
+    {% elif not exam.is_archived %}
+    <form method="post" action="{% url 'archive_exam' exam.id %}" data-confirm="Archiver l'examen ? Les étudiants n'y auront plus accès ; les résultats sont conservés.">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn danger-ghost block" type="submit">Archiver l'examen</button>
     </form>
     {% endif %}
   </aside>

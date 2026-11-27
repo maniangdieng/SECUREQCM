@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Response
+from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Question, Response
 
 
 # --------------------------------------------------------------------------- #
@@ -43,7 +43,8 @@ def enroll_audience(exam):
 
 def enroll_student_in_class_exams(student, classroom):
     """À l'arrivée d'un étudiant dans une classe, l'affecter aux examens CLASS déjà publiés."""
-    for exam in Exam.objects.filter(classroom=classroom, audience_mode="CLASS", published=True, is_archived=False):
+    for exam in Exam.objects.filter(classroom=classroom, audience_mode="CLASS", published=True, is_archived=False,
+                                    closed_at__isnull=True):
         ExamEnrollment.objects.get_or_create(exam=exam, student=student, defaults={"source": "CLASS"})
 
 
@@ -55,14 +56,16 @@ def unenroll_student_from_class_exams(student, classroom):
 
 
 def visible_exams_for_student(user, classroom=None):
-    """Examens publiés, non archivés, auxquels l'étudiant a accès."""
+    """Examens publiés, non archivés, auxquels l'étudiant a accès ; clôturés : seulement s'il les a commencés."""
     level = getattr(getattr(user, "profile", None), "study_level", "")
     criteria = Q(audience_mode="LIST", enrollments__student=user)
     criteria |= Q(audience_mode="CLASS", classroom__memberships__user=user,
                   classroom__memberships__role=ClassroomMembership.STUDENT)
     if level:
         criteria |= Q(audience_mode="LEVEL", target_level=level)
+    started = Attempt.objects.filter(student=user).values("exam_id")
     qs = Exam.objects.filter(criteria, published=True, is_archived=False)
+    qs = qs.filter(Q(closed_at__isnull=True) | Q(pk__in=started))
     if classroom is not None:
         qs = qs.filter(classroom=classroom)
     return qs.distinct().select_related("classroom").order_by("-created_at")
@@ -156,19 +159,37 @@ def close_expired_attempts(attempts=None):
 # --------------------------------------------------------------------------- #
 # Notation
 # --------------------------------------------------------------------------- #
-def calculate_score(attempt):
+def build_grading(exam, questions=None):
+    """Règle et barème d'un examen, sous la forme conservée sur la tentative (JSON)."""
+    if questions is None:
+        questions = exam.questions.prefetch_related("options")
+    return {
+        "multiple_scoring": exam.multiple_scoring,
+        "questions": {str(q.id): {"type": q.question_type, "points": str(q.points),
+                                  "correct": [o.id for o in q.options.all() if o.is_correct]}
+                      for q in questions},
+    }
+
+
+def grading_of(attempt):
+    """Barème appliqué à la tentative : figé au démarrage, sinon (anciennes tentatives) celui de l'examen."""
+    return attempt.grading_snapshot or build_grading(attempt.exam)
+
+
+def calculate_score(attempt, grading=None):
+    grading = grading or grading_of(attempt)
     total = Decimal("0")
-    for response in attempt.responses.select_related("question").all():
-        q = response.question
-        correct = set(q.options.filter(is_correct=True).values_list("id", flat=True))
-        selected = set(response.selected_option_ids)
-        if not correct:
+    for response in attempt.responses.all():
+        q = grading["questions"].get(str(response.question_id))
+        if not q or not q["correct"]:
             continue
-        if q.question_type == "SINGLE":
+        correct = set(q["correct"])
+        selected = set(response.selected_option_ids)
+        if q["type"] == Question.SINGLE or grading["multiple_scoring"] == Exam.ALL_OR_NOTHING:
             fraction = Decimal("1") if selected == correct else Decimal("0")
         else:
             fraction = max(Decimal("0"), min(Decimal("1"), Decimal(len(selected & correct) - len(selected - correct)) / Decimal(len(correct))))
-        total += q.points * fraction
+        total += Decimal(q["points"]) * fraction
     return total
 
 
@@ -177,10 +198,10 @@ def exam_max_score(exam):
     return sum((q.points for q in exam.questions.all()), Decimal("0"))
 
 
-def grade_summary(attempt, max_score=None):
-    score = calculate_score(attempt)
-    if max_score is None:
-        max_score = exam_max_score(attempt.exam)
+def grade_summary(attempt, grading=None):
+    grading = grading or grading_of(attempt)
+    score = calculate_score(attempt, grading)
+    max_score = sum((Decimal(q["points"]) for q in grading["questions"].values()), Decimal("0"))
     percent = (score / max_score * Decimal("100")) if max_score else Decimal("0")
     final_grade = (score / max_score * Decimal("20")) if max_score else Decimal("0")
     return {

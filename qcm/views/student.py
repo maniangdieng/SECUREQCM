@@ -49,7 +49,8 @@ def join_exam_by_code(request):
     code = request.POST.get("access_code", "").strip().upper()
     exam_id = request.POST.get("exam_id", "").strip()
     back = redirect_back(request, "student_dashboard")
-    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False, pk=exam_id).first()
+    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False,
+                                closed_at__isnull=True, pk=exam_id).first()
             if exam_id.isdigit() else None)
     if not exam:
         messages.error(request, "Code d'examen invalide ou examen non disponible.")

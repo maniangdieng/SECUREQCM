@@ -75,7 +75,8 @@ def student_register(request):
             profile.study_level = study_level
             profile.save()
             # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
-            for exam in Exam.objects.filter(published=True, is_archived=False, audience_mode="LEVEL", target_level=study_level):
+            for exam in Exam.objects.filter(published=True, is_archived=False, closed_at__isnull=True,
+                                            audience_mode="LEVEL", target_level=study_level):
                 ExamEnrollment.objects.get_or_create(exam=exam, student=user, defaults={"source": "LEVEL"})
             login(request, user)
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")

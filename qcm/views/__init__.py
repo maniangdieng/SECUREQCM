@@ -12,12 +12,13 @@ Vues de Secure QCM, découpées par espace fonctionnel :
 """
 from .auth import UnifiedLoginView, home, student_register  # noqa: F401
 from .admin import (admin_dashboard, admin_users, admin_set_role, admin_toggle_active,  # noqa: F401
-                    admin_archive_exam, admin_delete_exam, admin_normal_delete_exam)
+                    admin_delete_exam, admin_normal_delete_exam)
 from .classrooms import (create_classroom, classroom_detail, update_classroom, regenerate_class_code,  # noqa: F401
                          archive_classroom, delete_classroom, add_coteacher, add_students_to_classroom,
                          remove_classroom_member, join_classroom, leave_classroom)
 from .teacher import (teacher_dashboard, create_exam, update_exam_duration, delete_exam, teacher_exam,  # noqa: F401
-                      add_question, delete_question, publish_exam, import_exam_students)
+                      add_question, delete_question, publish_exam, import_exam_students,
+                      update_exam_settings, close_exam, archive_exam)
 from .imports import import_qcm, import_qcm_preview  # noqa: F401
 from .student import student_dashboard, join_exam_by_code  # noqa: F401
 from .attempts import (start_exam, take_exam, submit_answer_api, save_answer, security_event,  # noqa: F401

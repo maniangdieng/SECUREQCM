@@ -33,6 +33,7 @@
   <div class="card">
     <div class="question-text" id="qText"></div>
     <p class="muted small" id="qMeta"></p>
+    <p class="help" id="qRule" hidden></p>
     <form id="answerForm" method="post" action="{% url 'submit_answer_api' attempt.id %}">
       {% csrf_token %}
       <input type="hidden" name="question_id" id="qId">
@@ -109,6 +110,8 @@
     $('progressBar').style.width = Math.round(((s.index - 1) / s.total) * 100) + '%';
     $('qText').textContent = q.text;
     $('qMeta').textContent = q.type_label + ' · ' + q.points + ' point' + (parseFloat(q.points) > 1 ? 's' : '');
+    $('qRule').textContent = q.scoring_rule;
+    $('qRule').hidden = !q.scoring_rule;
     $('qId').value = q.id;
     const box = $('qOptions');
     box.replaceChildren();

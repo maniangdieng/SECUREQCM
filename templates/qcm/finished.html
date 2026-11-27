@@ -11,7 +11,7 @@
   {% endif %}
 
   <div class="score-ring" style="--p: {{ percentage|stringformat:'s'|default:'0' }}"><span>{{ percentage }} %</span></div>
-  <p><strong>Score : {{ score }} / {{ max_score }} points</strong></p>
+  <p><strong>Score : {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points</strong></p>
   <p class="muted small">Le pourcentage est calculé sur l'ensemble des questions de l'examen. Les questions sans réponse valent zéro point.</p>
   <a class="btn" href="{% url 'student_dashboard' %}">Retour à mon espace</a>
 </div>

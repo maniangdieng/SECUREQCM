@@ -89,6 +89,16 @@ class Exam(models.Model):
         ("LEVEL", "Tous les étudiants du niveau"),
         ("LIST", "Étudiants sélectionnés / liste CSV"),
     ]
+    PARTIAL = "PARTIAL"
+    ALL_OR_NOTHING = "ALL_OR_NOTHING"
+    SCORING_CHOICES = [(PARTIAL, "Points partiels"), (ALL_OR_NOTHING, "Tout ou rien")]
+    # Texte annoncé à l'étudiant avant et pendant l'examen.
+    SCORING_RULES = {
+        PARTIAL: "Choix multiples : points partiels. Chaque mauvaise réponse cochée annule une bonne réponse, "
+                 "sans descendre sous zéro.",
+        ALL_OR_NOTHING: "Choix multiples : tout ou rien. Les points ne sont accordés que si vous cochez "
+                        "toutes les bonnes réponses, et elles seules.",
+    }
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     # PROTECT : supprimer un enseignant ne doit jamais emporter ses examens (ni les copies
@@ -99,6 +109,9 @@ class Exam(models.Model):
     published = models.BooleanField(default=False)
     shuffle_questions = models.BooleanField(default=True)
     shuffle_answers = models.BooleanField(default=True)
+    multiple_scoring = models.CharField("Notation des choix multiples", max_length=16,
+                                        choices=SCORING_CHOICES, default=PARTIAL)
+    closed_at = models.DateTimeField("Date de clôture", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     access_code = models.CharField(max_length=12, unique=True, default=generate_exam_code)
     target_level = models.CharField(max_length=12, choices=LEVEL_CHOICES, blank=True, default="")
@@ -114,7 +127,16 @@ class Exam(models.Model):
     def state_label(self):
         if self.is_archived:
             return "Archivé"
+        if self.closed_at:
+            return "Clôturé"
         return "Publié" if self.published else "Brouillon"
+
+    @property
+    def state_badge(self):
+        """Classe CSS du badge d'état."""
+        if self.is_archived or self.closed_at:
+            return "archived"
+        return "published" if self.published else "draft"
 
 
 class ExamEnrollment(models.Model):
@@ -182,6 +204,8 @@ class Attempt(models.Model):
     question_started_at = models.DateTimeField()
     question_deadline = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
+    # Règle, barème et bonnes réponses figés au démarrage (cahier §4.5).
+    grading_snapshot = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["exam", "student"], condition=models.Q(status="IN_PROGRESS"),

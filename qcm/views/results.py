@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
-from ..services import close_expired_attempts, exam_max_score, grade_summary
+from ..services import close_expired_attempts, grade_summary, grading_of
 
 
 def csv_safe(value):
@@ -34,12 +34,11 @@ def exam_results(request, exam_id):
                 .annotate(violation_count=Count("security_events",
                                                 filter=Q(security_events__event_type__in=["TAB_SWITCH", "FULLSCREEN_EXIT"])))
                 .order_by("-started_at"))
-    max_score = exam_max_score(exam)
-    rows = [{"attempt": a, **grade_summary(a, max_score)} for a in attempts]
+    rows = [{"attempt": a, **grade_summary(a)} for a in attempts]
     finished = [r for r in rows if r["attempt"].status != Attempt.IN_PROGRESS]
     average = (sum(r["final_grade"] for r in finished) / len(finished)) if finished else None
     return render(request, "qcm/exam_results.html", {
-        "exam": exam, "rows": rows, "max_score": max_score,
+        "exam": exam, "rows": rows,
         "completed_count": len(finished),
         "in_progress_count": len(rows) - len(finished),
         "average": average,
@@ -54,17 +53,19 @@ def attempt_result_detail(request, attempt_id):
         return HttpResponseForbidden()
     if close_expired_attempts(Attempt.objects.filter(pk=attempt.pk)):
         attempt.refresh_from_db()
+    grading = grading_of(attempt)
     details = []
     response_map = {r.question_id: r for r in attempt.responses.all()}
     for q in attempt.exam.questions.prefetch_related("options").order_by("position"):
         response = response_map.get(q.id)
         selected = set(response.selected_option_ids) if response else set()
         options = list(q.options.all())
-        correct = {o.id for o in options if o.is_correct}
+        correct = set(grading["questions"].get(str(q.id), {}).get("correct", []))
         details.append({"question": q, "options": options, "selected": selected, "correct": correct,
                         "response": response, "is_right": bool(correct) and selected == correct})
     return render(request, "qcm/attempt_result_detail.html", {
-        "attempt": attempt, "details": details, **grade_summary(attempt),
+        "attempt": attempt, "details": details, **grade_summary(attempt, grading),
+        "scoring_label": dict(Exam.SCORING_CHOICES)[grading["multiple_scoring"]],
         "events": attempt.security_events.order_by("created_at"),
         "can_resume": attempt.status == Attempt.TERMINATED_SECURITY and not attempt.exam.is_archived
                       and can_authorize_resume(request.user, attempt),
@@ -85,11 +86,10 @@ def export_exam_results(request, exam_id):
     writer.writerow(["Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score", "Motif de clôture",
                      "Début", "Fin", "Score obtenu", "Score maximal", "Pourcentage (%)", "Note finale (/20)"])
 
-    max_score = exam_max_score(exam)
     attempts = (Attempt.objects.filter(exam=exam).select_related("student", "student__profile")
                 .order_by("student__username", "-started_at"))
     for attempt in attempts:
-        g = grade_summary(attempt, max_score)
+        g = grade_summary(attempt)
         profile = getattr(attempt.student, "profile", None)
         writer.writerow([
             csv_safe(attempt.student.username),
@@ -102,7 +102,7 @@ def export_exam_results(request, exam_id):
             timezone.localtime(attempt.started_at).strftime("%d/%m/%Y %H:%M"),
             timezone.localtime(attempt.ended_at).strftime("%d/%m/%Y %H:%M") if attempt.ended_at else "",
             str(g["score"].quantize(Decimal("0.01"))),
-            str(max_score.quantize(Decimal("0.01"))),
+            str(g["max_score"].quantize(Decimal("0.01"))),
             str(g["percent"]),
             str(g["final_grade"]),
         ])
