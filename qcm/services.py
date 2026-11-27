@@ -427,3 +427,20 @@ def question_stats(exam):
                         for o in question.options.all()],
         })
     return stats
+
+
+def add_turn_in_counts(exams):
+    """Ajoute assigned_count (inscrits) et turned_in_count (étudiants ayant remis) à chaque examen.
+
+    Deux requêtes groupées à part : réunis dans la requête des examens, les Count sur inscriptions,
+    copies et questions multiplient les lignes entre eux (plusieurs secondes à 200 étudiants).
+    """
+    exams = list(exams)
+    assigned = dict(ExamEnrollment.objects.filter(exam__in=exams).order_by()
+                    .values_list("exam").annotate(Count("id")))
+    turned_in = dict(Attempt.objects.filter(exam__in=exams).exclude(status=Attempt.IN_PROGRESS).order_by()
+                     .values_list("exam").annotate(Count("student", distinct=True)))
+    for exam in exams:
+        exam.assigned_count = assigned.get(exam.id, 0)
+        exam.turned_in_count = turned_in.get(exam.id, 0)
+    return exams

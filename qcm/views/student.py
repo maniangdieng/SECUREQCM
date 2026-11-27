@@ -43,7 +43,8 @@ def student_dashboard(request):
         c.upcoming = [e for e in todo if e.classroom_id == c.id]
     return render(request, "qcm/student_dashboard.html", {
         "classrooms": classrooms,
-        "other_todo": [e for e in todo if e.classroom_id is None],
+        # Ajout par matricule hors classe, classe archivée… : tout ce qui n'est pas sous une classe affichée.
+        "other_todo": [e for e in todo if e.classroom_id not in {c.id for c in classrooms}],
         "todo_exams": todo, "done_exams": done,
     })
 

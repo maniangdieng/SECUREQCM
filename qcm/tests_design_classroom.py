@@ -181,3 +181,40 @@ class ClassroomLayoutTests(TestCase):
         self.client.force_login(self.teacher)
         response = self.client.post(f"/teacher/exams/{draft.id}/delete/")
         self.assertRedirects(response, f"/classes/{self.classroom.id}/?tab=travaux")
+
+
+class SecondReviewTests(ClassroomLayoutTests):
+    """Deuxième relecture de #42 : comptages séparés, examens hors classe sur l'accueil."""
+
+    def test_turn_in_counts_are_not_multiplied_by_other_joins(self):
+        for i in range(3):
+            student = make_user(f"gc_count_{i}")
+            ClassroomMembership.objects.create(classroom=self.classroom, user=student, role="STUDENT")
+            ExamEnrollment.objects.create(exam=self.exam, student=student, source="CLASS")
+            self.finished_attempt(student, {})
+        self.client.force_login(self.teacher)
+        exam = next(e for e in self.client.get(f"/classes/{self.classroom.id}/").context["exams"] if e.id == self.exam.id)
+        self.assertEqual((exam.assigned_count, exam.turned_in_count, exam.question_count), (4, 3, 2))
+        todo = self.client.get("/teacher/to-review/").context["exams"]
+        self.assertEqual([(e.assigned_count, e.turned_in_count) for e in todo], [(4, 3)])
+
+    def test_expired_copy_counts_as_turned_in_on_teacher_todo(self):
+        past = timezone.now() - timedelta(minutes=5)
+        Attempt.objects.create(exam=self.exam, student=self.student, question_order=[], global_deadline=past,
+                               question_started_at=past, question_deadline=past)
+        self.client.force_login(self.teacher)
+        self.assertEqual(self.client.get("/teacher/to-review/").context["exams"][0].turned_in_count, 1)
+
+    def test_exam_of_a_class_the_student_is_not_in_stays_on_home(self):
+        # Ajout par matricule à un examen de classe, sans être membre de la classe.
+        ExamEnrollment.objects.create(exam=self.exam, student=self.other, source="LIST")
+        self.client.force_login(self.other)
+        page = self.client.get("/dashboard/student/")
+        self.assertIn(self.exam, page.context["other_todo"])
+        self.assertContains(page, "Autres examens")
+
+    def test_exam_of_an_archived_class_stays_on_home(self):
+        Classroom.objects.filter(pk=self.classroom.pk).update(is_archived=True)
+        self.client.force_login(self.student)
+        page = self.client.get("/dashboard/student/")
+        self.assertIn(self.exam, page.context["other_todo"])
