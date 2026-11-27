@@ -45,6 +45,8 @@ urlpatterns = [
     path("teacher/exams/<int:exam_id>/students/import/", views.import_exam_students, name="import_exam_students"),
     path("teacher/exams/<int:exam_id>/results/", views.exam_results, name="exam_results"),
     path("teacher/exams/<int:exam_id>/results/export/", views.export_exam_results, name="export_exam_results"),
+    path("teacher/exams/<int:exam_id>/results/export.xlsx", views.export_exam_results, {"fmt": "xlsx"},
+         name="export_exam_results_xlsx"),
     path("teacher/attempts/<int:attempt_id>/results/", views.attempt_result_detail, name="attempt_result_detail"),
     path("teacher/attempts/<int:attempt_id>/authorize-resume/", views.authorize_resume, name="authorize_resume"),
     path("teacher/import-qcm/", views.import_qcm, name="import_qcm"),

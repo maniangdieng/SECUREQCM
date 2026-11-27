@@ -6,7 +6,10 @@
 </div>
 <div class="page-head">
   <div><h1>Résultats</h1><p>{{ exam.title }}</p></div>
-  <a class="btn" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV (Excel)</a>
+  <div class="row" style="gap:8px">
+    <a class="btn" href="{% url 'export_exam_results_xlsx' exam.id %}">Exporter en Excel</a>
+    <a class="btn ghost" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV</a>
+  </div>
 </div>
 
 <div class="grid grid-stats" style="margin-bottom:20px">

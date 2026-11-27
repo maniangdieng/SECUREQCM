@@ -133,7 +133,7 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P3 : barème négatif** optionnel pour les mauvaises réponses.
 
 ### 3.4 Résultats et statistiques
-- [ ] **P2 : export Excel natif** (`.xlsx` avec `openpyxl`, déjà en dépendance) en plus du CSV.
+- [x] **P2 : export Excel natif** (`.xlsx` avec `openpyxl`, déjà en dépendance) en plus du CSV.
 - [ ] **P2 : analyse par question** : taux de réussite, propositions les plus choisies, questions trop faciles ou trop difficiles.
 - [ ] **P3 : graphiques** (répartition des notes) dans la page de résultats.
 

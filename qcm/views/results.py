@@ -1,15 +1,14 @@
 import csv
-from decimal import Decimal
+from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404
-from django.utils import timezone
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
-from ..services import close_expired_attempts, grade_summary, grading_of
+from ..services import (RESULT_HEADER, close_expired_attempts, exam_attempts, grade_summary, graded_attempts,
+                        grading_of, result_rows)
 
 
 def csv_safe(value):
@@ -29,12 +28,8 @@ def exam_results(request, exam_id):
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
     close_expired_attempts(Attempt.objects.filter(exam=exam))
-    attempts = (Attempt.objects.filter(exam=exam).select_related("student", "student__profile")
-                # Seules les vraies violations comptent (pas les doublons ignorés ni les reprises).
-                .annotate(violation_count=Count("security_events",
-                                                filter=Q(security_events__event_type__in=["TAB_SWITCH", "FULLSCREEN_EXIT"])))
-                .order_by("-started_at"))
-    rows = [{"attempt": a, **grade_summary(a)} for a in attempts]
+    attempts = exam_attempts(exam).order_by("-started_at")
+    rows = [{"attempt": a, **g} for a, g in graded_attempts(exam, attempts)]
     finished = [r for r in rows if r["attempt"].status != Attempt.IN_PROGRESS]
     average = (sum(r["final_grade"] for r in finished) / len(finished)) if finished else None
     return render(request, "qcm/exam_results.html", {
@@ -72,38 +67,62 @@ def attempt_result_detail(request, attempt_id):
     })
 
 
+def _csv_cell(value):
+    return value.strftime("%d/%m/%Y %H:%M") if isinstance(value, datetime) else csv_safe(value)
+
+
+def _write_csv(response, rows):
+    response.write("\ufeff")  # BOM : Excel détecte l'UTF-8
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(RESULT_HEADER)
+    for row in rows:
+        writer.writerow([_csv_cell(value) for value in row])
+
+
+def _write_xlsx(response, rows):
+    from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+    from openpyxl.utils import get_column_letter
+
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet("Résultats")
+    sheet.freeze_panes = "A2"
+    for number in range(1, len(RESULT_HEADER) + 1):
+        sheet.column_dimensions[get_column_letter(number)].width = 18
+
+    def cell(value):
+        if isinstance(value, str):
+            # Type « texte » imposé : un nom commençant par « = » ne devient jamais une formule.
+            text = WriteOnlyCell(sheet, ILLEGAL_CHARACTERS_RE.sub("", value))
+            text.data_type = "s"
+            return text
+        if isinstance(value, datetime):
+            date = WriteOnlyCell(sheet, value)
+            date.number_format = "dd/mm/yyyy hh:mm"
+            return date
+        return value
+
+    sheet.append(RESULT_HEADER)
+    for row in rows:
+        sheet.append([cell(value) for value in row])
+    workbook.save(response)
+
+
+EXPORT_FORMATS = {
+    "csv": ("text/csv; charset=utf-8", _write_csv),
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _write_xlsx),
+}
+
+
 @login_required
-def export_exam_results(request, exam_id):
+def export_exam_results(request, exam_id, fmt="csv"):
     exam = get_object_or_404(Exam, pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
     close_expired_attempts(Attempt.objects.filter(exam=exam))
-
-    response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="resultats_examen_{exam.id}.csv"'
-    response.write("﻿")  # BOM : Excel détecte l'UTF-8
-    writer = csv.writer(response, delimiter=";")
-    writer.writerow(["Identifiant", "Matricule", "Nom", "Prénom", "Statut", "Nature du score", "Motif de clôture",
-                     "Début", "Fin", "Score obtenu", "Score maximal", "Pourcentage (%)", "Note finale (/20)"])
-
-    attempts = (Attempt.objects.filter(exam=exam).select_related("student", "student__profile")
-                .order_by("student__username", "-started_at"))
-    for attempt in attempts:
-        g = grade_summary(attempt)
-        profile = getattr(attempt.student, "profile", None)
-        writer.writerow([
-            csv_safe(attempt.student.username),
-            csv_safe(profile.student_number if profile else ""),
-            csv_safe(attempt.student.last_name),
-            csv_safe(attempt.student.first_name),
-            attempt.get_status_display(),
-            "Provisoire" if attempt.status == Attempt.IN_PROGRESS else "Définitif",
-            "Violation des règles" if attempt.status == Attempt.TERMINATED_SECURITY else attempt.get_status_display(),
-            timezone.localtime(attempt.started_at).strftime("%d/%m/%Y %H:%M"),
-            timezone.localtime(attempt.ended_at).strftime("%d/%m/%Y %H:%M") if attempt.ended_at else "",
-            str(g["score"].quantize(Decimal("0.01"))),
-            str(g["max_score"].quantize(Decimal("0.01"))),
-            str(g["percent"]),
-            str(g["final_grade"]),
-        ])
+    content_type, write = EXPORT_FORMATS[fmt]
+    response = HttpResponse(content_type=content_type)
+    response["Content-Disposition"] = f'attachment; filename="resultats_examen_{exam.id}.{fmt}"'
+    write(response, result_rows(exam))
     return response
