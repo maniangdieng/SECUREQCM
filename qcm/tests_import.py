@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 from decimal import Decimal
+from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
@@ -251,10 +252,11 @@ class ImportCommandTests(TestCase):
         make_user("cmd_teacher", "TEACHER")
 
     def run_command(self, data):
-        with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8") as handle:
-            json.dump(data, handle)
-            handle.flush()
-            call_command("import_qcm", file=handle.name, teacher="cmd_teacher", stdout=io.StringIO())
+        # Le fichier doit être fermé avant que la commande le relise (exigé par Windows).
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sujet.json"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            call_command("import_qcm", file=str(path), teacher="cmd_teacher", stdout=io.StringIO())
 
     def test_command_keeps_type_points_and_metadata(self):
         self.run_command({"title": "Depuis la ligne de commande", "questions": [
