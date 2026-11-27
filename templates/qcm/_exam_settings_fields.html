@@ -1,0 +1,19 @@
+{# Réglages d'examen (issue #25). Sans `exam` (création), les premières valeurs sont les valeurs par défaut. #}
+<label>Choix multiples
+  <select name="multiple_scoring">
+    <option value="PARTIAL">Points partiels</option>
+    <option value="ALL_OR_NOTHING"{% if exam.multiple_scoring == "ALL_OR_NOTHING" %} selected{% endif %}>Tout ou rien</option>
+  </select>
+</label>
+<label>Ordre des questions
+  <select name="question_order">
+    <option value="random">Aléatoire</option>
+    <option value="fixed"{% if exam and not exam.shuffle_questions %} selected{% endif %}>Fixe</option>
+  </select>
+</label>
+<label>Ordre des réponses
+  <select name="answer_order">
+    <option value="random">Aléatoire</option>
+    <option value="fixed"{% if exam and not exam.shuffle_answers %} selected{% endif %}>Fixe</option>
+  </select>
+</label>

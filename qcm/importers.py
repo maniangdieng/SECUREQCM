@@ -1,7 +1,6 @@
 import json
 import re
 from decimal import Decimal
-from pathlib import Path
 
 LETTERS = "ABCDEFGH"
 

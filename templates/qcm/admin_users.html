@@ -4,7 +4,7 @@
 <div class="breadcrumb"><a href="{% url 'admin_dashboard' %}">Administration</a> › Comptes</div>
 <div class="page-head">
   <div><h1>Comptes utilisateurs</h1><p>Attribuez le rôle enseignant aux comptes concernés. {% if not is_superadmin %}Seul le super-administrateur peut nommer un administrateur.{% endif %}</p></div>
-  {% if user.is_staff %}<a class="btn ghost" href="/admin/auth/user/add/">Créer un compte</a>{% endif %}
+  <a class="btn" href="{% url 'admin_create_user' %}">Créer un compte</a>
 </div>
 
 <form method="get" class="card flat row" style="margin-bottom:18px">
