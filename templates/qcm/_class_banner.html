@@ -1,0 +1,15 @@
+<header class="class-banner bg-{{ classroom.color }}">
+  <h1>{{ classroom.name }}</h1>
+  {% if classroom.section %}<p class="class-banner-sub">{{ classroom.section }}</p>{% endif %}
+  {% if classroom.subject or classroom.description %}
+  <details class="class-banner-info">
+    <summary title="Informations sur la classe" aria-label="Informations sur la classe">i</summary>
+    <dl>
+      {% if classroom.subject %}<dt>Matière</dt><dd>{{ classroom.subject }}</dd>{% endif %}
+      {% if classroom.study_level %}<dt>Niveau</dt><dd>{{ classroom.get_study_level_display }}</dd>{% endif %}
+      {% if classroom.description %}<dt>Description</dt><dd>{{ classroom.description|linebreaksbr }}</dd>{% endif %}
+    </dl>
+  </details>
+  {% endif %}
+  {% if classroom.is_archived %}<span class="badge archived">Classe archivée</span>{% endif %}
+</header>

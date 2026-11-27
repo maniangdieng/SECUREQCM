@@ -6,44 +6,129 @@
   <title>{% block title %}Secure QCM{% endblock %} · Secure QCM</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f6b5c'/><text x='16' y='21' font-size='13' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'>QCM</text></svg>">
+  <script>/* Menu replié : appliqué avant l'affichage pour éviter un saut de mise en page. */
+    try { if (localStorage.getItem("sq-drawer") === "rail") document.documentElement.classList.add("drawer-rail"); } catch (e) {}</script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
 {% block appbar %}
-<header class="appbar">
-  <div class="appbar-inner">
-    <a class="brand" href="{% url 'home' %}"><span class="brand-mark">SQ</span> Secure QCM</a>
-    {% if user.is_authenticated %}
-    {% with path=request.path %}
-    <nav class="appnav" aria-label="Navigation principale">
-      {% if app_role == "ADMIN" %}
-        <a href="{% url 'admin_dashboard' %}" class="{% if path == '/dashboard/admin/' %}active{% endif %}">Administration</a>
-        <a href="{% url 'admin_users' %}" class="{% if '/dashboard/admin/users' in path %}active{% endif %}">Comptes</a>
-        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Classes</a>
-      {% elif app_role == "TEACHER" %}
-        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
-        <a href="{% url 'import_qcm' %}" class="{% if '/import-qcm' in path %}active{% endif %}">Importer un QCM</a>
-      {% else %}
-        <a href="{% url 'student_dashboard' %}" class="{% if path == '/dashboard/student/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
-      {% endif %}
-    </nav>
-    {% endwith %}
-    <div class="usermenu">
-      <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Admin{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
-      <span class="avatar" title="{{ user.get_full_name|default:user.username }}">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
-      <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="btn ghost sm" type="submit">Déconnexion</button></form>
-    </div>
+<header class="topbar">
+  {% if user.is_authenticated %}
+  <button class="icon-btn" type="button" id="drawerToggle" aria-label="Menu principal" aria-controls="drawer">{% include "qcm/_icon.html" with name="menu" %}</button>
+  {% endif %}
+  <a class="brand" href="{% url 'home' %}"><span class="brand-mark">SQ</span><span class="brand-name">Secure QCM</span></a>
+  {% block crumb %}{% endblock %}
+  {% if user.is_authenticated %}
+  <div class="topbar-actions">
+    {% if app_role == "STUDENT" %}
+      <button class="icon-btn" type="button" data-dialog="dlg-join" title="Rejoindre une classe" aria-label="Rejoindre une classe">{% include "qcm/_icon.html" with name="plus" %}</button>
+    {% else %}
+      <button class="icon-btn" type="button" data-dialog="dlg-create-class" title="Créer une classe" aria-label="Créer une classe">{% include "qcm/_icon.html" with name="plus" %}</button>
     {% endif %}
-  </div>
-</header>
-{% endblock %}
-<main class="{% block main_class %}page{% endblock %}">
-  {% if messages %}
-  <div class="messages" role="status">
-    {% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}
+    <details class="account">
+      <summary aria-label="Mon compte"><span class="avatar">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span></summary>
+      <div class="account-menu">
+        <span class="avatar lg">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
+        <strong>{{ user.get_full_name|default:user.username }}</strong>
+        <span class="muted small">{{ user.username }}</span>
+        <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Administrateur{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost" type="submit">{% include "qcm/_icon.html" with name="logout" %} Se déconnecter</button></form>
+      </div>
+    </details>
   </div>
   {% endif %}
-  {% block content %}{% endblock %}
+</header>
+
+{% if user.is_authenticated %}
+{% with path=request.path %}
+<nav class="drawer" id="drawer" aria-label="Navigation principale">
+  <a href="{% url 'home' %}" class="nav-item {% if path == '/dashboard/teacher/' or path == '/dashboard/student/' %}active{% endif %}" title="Accueil">{% include "qcm/_icon.html" with name="home" %}<span>Accueil</span></a>
+  {% if app_role == "ADMIN" %}
+    <a href="{% url 'admin_dashboard' %}" class="nav-item {% if path == '/dashboard/admin/' %}active{% endif %}" title="Administration">{% include "qcm/_icon.html" with name="admin" %}<span>Administration</span></a>
+    <a href="{% url 'admin_users' %}" class="nav-item {% if '/dashboard/admin/users' in path %}active{% endif %}" title="Comptes">{% include "qcm/_icon.html" with name="people" %}<span>Comptes</span></a>
+  {% endif %}
+  <hr>
+  {% if app_role == "STUDENT" %}
+    <div class="nav-heading">{% include "qcm/_icon.html" with name="school" %}<span>Inscrit</span></div>
+    <a href="{% url 'student_todo' %}" class="nav-item {% if path == '/student/todo/' %}active{% endif %}" title="À faire">{% include "qcm/_icon.html" with name="todo" %}<span>À faire</span></a>
+    {% for c in nav_enrolled %}
+    <a href="{% url 'classroom_detail' c.id %}" class="nav-item nav-class {% if classroom.id == c.id or exam.classroom_id == c.id %}active{% endif %}" title="{{ c.name }}"><span class="class-dot bg-{{ c.color }}">{{ c.name|first|upper }}</span><span><span class="nav-class-name">{{ c.name }}</span>{% if c.section %}<span class="nav-class-sub">{{ c.section }}</span>{% endif %}</span></a>
+    {% endfor %}
+  {% else %}
+    <div class="nav-heading">{% include "qcm/_icon.html" with name="school" %}<span>Enseignement</span></div>
+    <a href="{% url 'teacher_todo' %}" class="nav-item {% if path == '/teacher/to-review/' %}active{% endif %}" title="À examiner">{% include "qcm/_icon.html" with name="review" %}<span>À examiner</span></a>
+    {% for c in nav_teaching %}
+    <a href="{% url 'classroom_detail' c.id %}" class="nav-item nav-class {% if classroom.id == c.id or exam.classroom_id == c.id %}active{% endif %}" title="{{ c.name }}"><span class="class-dot bg-{{ c.color }}">{{ c.name|first|upper }}</span><span><span class="nav-class-name">{{ c.name }}</span>{% if c.section %}<span class="nav-class-sub">{{ c.section }}</span>{% endif %}</span></a>
+    {% endfor %}
+  {% endif %}
+  <hr>
+  <a href="{% url 'archived_classrooms' %}" class="nav-item {% if path == '/classes/archived/' %}active{% endif %}" title="Classes archivées">{% include "qcm/_icon.html" with name="archive" %}<span>Classes archivées</span></a>
+  {% if app_role != "STUDENT" %}
+  <a href="{% url 'import_qcm' %}" class="nav-item {% if '/import-qcm' in path %}active{% endif %}" title="Importer un QCM">{% include "qcm/_icon.html" with name="upload" %}<span>Importer un QCM</span></a>
+  {% endif %}
+</nav>
+<div class="drawer-scrim" id="drawerScrim" hidden></div>
+{% endwith %}
+{% endif %}
+{% endblock %}
+
+<main class="app-main">
+  {% block classnav %}{% endblock %}
+  <div class="{% block main_class %}page{% endblock %}">
+    {% if messages %}
+    <div class="messages" role="status">
+      {% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
 </main>
+
+{% if user.is_authenticated %}
+{% if app_role == "STUDENT" %}
+<dialog id="dlg-join">
+  <form method="post" action="{% url 'join_classroom' %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Rejoindre une classe</h2>
+      <div class="dialog-box">
+        <p class="small muted">Demandez le code de la classe à votre enseignant, puis saisissez-le ici.</p>
+        <label>Code de la classe<input name="join_code" required maxlength="12" autocomplete="off" class="code-input"></label>
+      </div>
+      <p class="small muted mb-0">Le code de la classe comporte 7 lettres ou chiffres, sans espace ni symbole.</p>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn text" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Rejoindre</button>
+    </div>
+  </form>
+</dialog>
+{% elif class_levels %}
+<dialog id="dlg-create-class">
+  <form method="post" action="{% url 'create_classroom' %}">
+    {% csrf_token %}
+    <div class="dialog-body">
+      <h2>Créer une classe</h2>
+      <label>Nom de la classe (obligatoire)<input name="name" required maxlength="120" placeholder="Ex. Machine Learning"></label>
+      <label>Section<input name="section" maxlength="120" placeholder="Ex. Ingénieur 1 – Groupe A"></label>
+      <label>Matière<input name="subject" maxlength="120"></label>
+      <div class="row">
+        <label class="grow">Niveau
+          <select name="study_level"><option value="">—</option>{% for value, label in class_levels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+        <label class="grow">Couleur du thème
+          <select name="color">{% for value, label in class_colors %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn text" type="button" data-close>Annuler</button>
+      <button class="btn" type="submit">Créer</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+{% endif %}
+
 <script src="{% static 'js/app.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>

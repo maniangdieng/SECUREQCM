@@ -1,29 +1,9 @@
-{% with a=e.student_attempt en=e.student_enrollment %}
-<div class="work">
-  <span class="icon {% if a and a.status == 'TERMINATED_SECURITY' %}locked{% elif a and a.status != 'IN_PROGRESS' %}done{% endif %}">
-    {% if a and a.status == 'TERMINATED_SECURITY' %}!{% elif a and a.status != 'IN_PROGRESS' %}✓{% else %}?{% endif %}
+{% with a=e.student_attempt %}
+<li><a class="work-row" href="{% url 'student_exam' e.id %}">
+  <span class="work-icon {% if a and a.status != 'IN_PROGRESS' %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
+  <span class="work-title">{{ e.title }}<span class="work-sub">{% if show_class and e.classroom %}{{ e.classroom.name }} · {% endif %}{{ e.duration_minutes }} min</span></span>
+  <span class="work-meta {% if a.status == 'TERMINATED_SECURITY' %}is-danger{% elif a and a.status != 'IN_PROGRESS' %}is-done{% elif a %}is-progress{% endif %}">
+    {% if not a %}Attribué{% elif a.status == "IN_PROGRESS" %}En cours{% elif a.status == "TERMINATED_SECURITY" %}Clôturé{% else %}Remis{% endif %}
   </span>
-  <div class="info">
-    <strong>{{ e.title }}</strong>
-    <div class="meta">{% if e.classroom %}{{ e.classroom.name }} · {% endif %}{{ e.duration_minutes }} min{% if e.description %} · {{ e.description|truncatechars:80 }}{% endif %}</div>
-  </div>
-  {% if a and a.status == "TERMINATED_SECURITY" %}
-    <span class="badge danger">Clôturé (sécurité)</span>
-  {% elif a and a.status != "IN_PROGRESS" %}
-    <span class="badge ok">{{ a.get_status_display }}</span>
-    <a class="btn ghost sm" href="{% url 'take_exam' a.id %}">Voir</a>
-  {% elif en and en.code_verified %}
-    <form method="post" action="{% url 'start_exam' e.id %}">{% csrf_token %}
-      <button class="btn sm" type="submit">{% if a %}Reprendre{% else %}Commencer{% endif %}</button>
-    </form>
-  {% else %}
-    <form method="post" action="{% url 'join_exam_by_code' %}" class="row" style="gap:6px;align-items:center">
-      {% csrf_token %}
-      <input type="hidden" name="exam_id" value="{{ e.id }}">
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <input name="access_code" maxlength="12" required placeholder="Code d'examen" style="width:150px;text-transform:uppercase" aria-label="Code d'accès de l'examen">
-      <button class="btn sm" type="submit">Valider</button>
-    </form>
-  {% endif %}
-</div>
+</a></li>
 {% endwith %}

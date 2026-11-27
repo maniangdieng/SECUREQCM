@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block content %}
+{% with a=exam.student_attempt en=exam.student_enrollment %}
+<div class="assignment theme-{{ exam.classroom.color|default:'teal' }}">
+  <article class="assignment-main">
+    <div class="assignment-head">
+      <span class="work-icon lg">{% include "qcm/_icon.html" with name="assignment" %}</span>
+      <div>
+        <h1 class="assignment-title">{{ exam.title }}</h1>
+        <p class="muted small mb-0">{{ exam.teacher.get_full_name|default:exam.teacher.username }} · {{ exam.created_at|date:"j M Y" }}</p>
+        <p class="small assignment-facts">Note sur 20 · {{ question_count }} question{{ question_count|pluralize }} · {{ exam.duration_minutes }} minutes</p>
+      </div>
+    </div>
+    {% if exam.description %}<div class="assignment-body">{{ exam.description|linebreaksbr }}</div>{% endif %}
+    <div class="assignment-body">
+      <h2 class="h-small">Règles de l'examen</h2>
+      <ul class="rules-list">
+        <li>L'examen se passe en <strong>plein écran</strong>, une question à la fois.</li>
+        <li>Chaque question a son propre temps (durée totale ÷ nombre de questions). Sans réponse à temps, la question est enregistrée vide.</li>
+        <li>Pas de retour en arrière sur une question validée.</li>
+        <li>Changer d'onglet ou quitter le plein écran : un avertissement la première fois, <strong>clôture de l'examen</strong> la deuxième.</li>
+      </ul>
+    </div>
+  </article>
+
+  <aside class="assignment-side">
+    <div class="your-work">
+      <div class="your-work-head">
+        <h2>Vos travaux</h2>
+        <span class="work-meta {% if a.status == 'TERMINATED_SECURITY' %}is-danger{% elif a and a.status != 'IN_PROGRESS' %}is-done{% elif a %}is-progress{% endif %}">
+          {% if not a %}Attribué{% elif a.status == "IN_PROGRESS" %}En cours{% elif a.status == "TERMINATED_SECURITY" %}Clôturé{% else %}Remis{% endif %}
+        </span>
+      </div>
+      {% if a and a.status == "TERMINATED_SECURITY" %}
+        <p class="small">Votre tentative a été clôturée pour non-respect des règles. Seul votre enseignant peut autoriser une reprise.</p>
+        <a class="btn ghost block" href="{% url 'take_exam' a.id %}">Voir le résultat</a>
+      {% elif a and a.status != "IN_PROGRESS" %}
+        <p class="small">Examen terminé le {{ a.ended_at|date:"j M Y à H:i" }}.</p>
+        <a class="btn ghost block" href="{% url 'take_exam' a.id %}">Voir le résultat</a>
+      {% elif en and en.code_verified %}
+        <form method="post" action="{% url 'start_exam' exam.id %}">{% csrf_token %}
+          <button class="btn block" type="submit">{% if a %}Reprendre l'examen{% else %}Commencer l'examen{% endif %}</button>
+        </form>
+        <p class="help center">Le plein écran vous sera demandé.</p>
+      {% else %}
+        <form method="post" action="{% url 'join_exam_by_code' %}">
+          {% csrf_token %}
+          <input type="hidden" name="exam_id" value="{{ exam.id }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <label>Code d'accès de l'examen<input name="access_code" maxlength="12" required autocomplete="off" class="code-input" placeholder="Donné le jour de l'épreuve"></label>
+          <button class="btn block" type="submit">Valider le code</button>
+        </form>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endwith %}
+{% endblock %}

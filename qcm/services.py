@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db.models import Q
 
-from .models import Exam, ExamEnrollment, ClassroomMembership
+from .models import ClassroomMembership, Exam, ExamEnrollment, Option, Question, Response
 
 
 # --------------------------------------------------------------------------- #
@@ -67,20 +67,50 @@ def visible_exams_for_student(user, classroom=None):
 # --------------------------------------------------------------------------- #
 # Notation
 # --------------------------------------------------------------------------- #
+def response_points(question_type, points, correct, selected):
+    """Points obtenus pour une réponse (règle de notation unique, utilisée partout)."""
+    if not correct:
+        return Decimal("0")
+    if question_type == "SINGLE":
+        fraction = Decimal("1") if selected == correct else Decimal("0")
+    else:
+        fraction = max(Decimal("0"), min(Decimal("1"), Decimal(len(selected & correct) - len(selected - correct)) / Decimal(len(correct))))
+    return points * fraction
+
+
 def calculate_score(attempt):
     total = Decimal("0")
     for response in attempt.responses.select_related("question").all():
         q = response.question
         correct = set(q.options.filter(is_correct=True).values_list("id", flat=True))
-        selected = set(response.selected_option_ids)
-        if not correct:
-            continue
-        if q.question_type == "SINGLE":
-            fraction = Decimal("1") if selected == correct else Decimal("0")
-        else:
-            fraction = max(Decimal("0"), min(Decimal("1"), Decimal(len(selected & correct) - len(selected - correct)) / Decimal(len(correct))))
-        total += q.points * fraction
+        total += response_points(q.question_type, q.points, correct, set(response.selected_option_ids))
     return total
+
+
+def final_grades(attempts):
+    """
+    Note /20 de plusieurs tentatives en un nombre constant de requêtes
+    (onglet « Notes » d'une classe : étudiants × examens). Même règle que grade_summary.
+    """
+    attempts = list(attempts)
+    exam_ids = {a.exam_id for a in attempts}
+    questions = {q.id: q for q in Question.objects.filter(exam_id__in=exam_ids)}
+    correct = {}
+    for option_id, question_id in Option.objects.filter(question_id__in=questions, is_correct=True).values_list("id", "question_id"):
+        correct.setdefault(question_id, set()).add(option_id)
+    max_by_exam = {}
+    for q in questions.values():
+        max_by_exam[q.exam_id] = max_by_exam.get(q.exam_id, Decimal("0")) + q.points
+    score = {a.id: Decimal("0") for a in attempts}
+    for r in Response.objects.filter(attempt__in=attempts).only("attempt_id", "question_id", "selected_option_ids"):
+        q = questions.get(r.question_id)
+        if q:
+            score[r.attempt_id] += response_points(q.question_type, q.points, correct.get(q.id, set()), set(r.selected_option_ids))
+    grades = {}
+    for a in attempts:
+        max_score = max_by_exam.get(a.exam_id, Decimal("0"))
+        grades[a.id] = (score[a.id] / max_score * Decimal("20")).quantize(Decimal("0.01")) if max_score else Decimal("0.00")
+    return grades
 
 
 def exam_max_score(exam):

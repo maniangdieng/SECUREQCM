@@ -46,6 +46,21 @@ def teacher_dashboard(request):
     })
 
 
+@login_required
+def teacher_todo(request):
+    """Page « À examiner » : les examens publiés des classes de l'enseignant, avec copies rendues / attribuées."""
+    if not is_teacher_or_admin(request.user):
+        return redirect("student_todo")
+    exams = (Exam.objects.filter(Q(classroom__in=manageable_classrooms(request.user)) | Q(teacher=request.user),
+                                 published=True, is_archived=False)
+             .distinct().select_related("classroom")
+             .annotate(assigned_count=Count("enrollments", distinct=True),
+                       turned_in_count=Count("attempts__student", distinct=True,
+                                             filter=~Q(attempts__status=Attempt.IN_PROGRESS)))
+             .order_by("-created_at"))
+    return render(request, "qcm/teacher_todo.html", {"exams": exams})
+
+
 def _parse_duration(value):
     try:
         duration = int(value)

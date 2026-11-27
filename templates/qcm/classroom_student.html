@@ -1,32 +1,54 @@
 {% extends "base.html" %}
 {% block title %}{{ classroom.name }}{% endblock %}
+{% block body_class %}theme-{{ classroom.color }}{% endblock %}
+{% block crumb %}{% include "qcm/_class_crumb.html" %}{% endblock %}
+{% block classnav %}{% include "qcm/_class_nav.html" %}{% endblock %}
 {% block content %}
-<div class="class-hero banner-{{ classroom.color }}">
-  <span class="banner-deco"></span>
-  <h1>{{ classroom.name }}</h1>
-  <div class="sub">{{ classroom.section }}{% if classroom.section and classroom.subject %} · {% endif %}{{ classroom.subject }}</div>
-</div>
-
-<nav class="tabs">
-  <a href="?tab=travaux" class="{% if tab != 'personnes' %}active{% endif %}">Examens</a>
-  <a href="?tab=personnes" class="{% if tab == 'personnes' %}active{% endif %}">Personnes</a>
-</nav>
-
+<div class="class-page theme-{{ classroom.color }}">
 {% if tab == "personnes" %}
-<div class="card">
-  <h2>Enseignants</h2>
-  <ul class="list">
-    {% for m in teachers %}<li class="list-item"><div class="person"><span class="avatar">{{ m.user.first_name|first|upper|default:m.user.username|first|upper }}{{ m.user.last_name|first|upper }}</span><strong>{{ m.user.get_full_name|default:m.user.username }}</strong></div></li>{% endfor %}
-  </ul>
-  <p class="muted">{{ student_count }} étudiant{{ student_count|pluralize }} dans la classe.</p>
-  <hr>
-  <form method="post" action="{% url 'leave_classroom' classroom.id %}" data-confirm="Quitter cette classe ? Vous pourrez la rejoindre à nouveau avec son code.">
-    {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Quitter la classe</button>
-  </form>
-</div>
+  {% include "qcm/_people.html" %}
+
+{% elif tab == "travaux" %}
+  <div class="classwork">
+    {% if exams %}
+    <ul class="stream-list">{% for e in exams %}{% include "qcm/_student_exam.html" %}{% endfor %}</ul>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-illus bg-{{ classroom.color }}">{% include "qcm/_icon.html" with name="assignment" %}</div>
+      <h2>Aucun travail pour le moment</h2>
+      <p>Les examens publiés par votre enseignant apparaîtront ici.</p>
+    </div>
+    {% endif %}
+  </div>
+
 {% else %}
-{% if classroom.description %}<div class="card flat" style="margin-bottom:16px">{{ classroom.description|linebreaksbr }}</div>{% endif %}
-{% for e in exams %}{% include "qcm/_student_exam.html" %}
-{% empty %}<div class="empty"><h3>Aucun examen publié</h3><p class="mb-0">Les examens apparaîtront ici dès que votre enseignant les publiera.</p></div>{% endfor %}
+  {% include "qcm/_class_banner.html" %}
+  <div class="stream">
+    <aside class="stream-side">
+      <div class="side-card">
+        <h3>À venir</h3>
+        {% for e in upcoming|slice:":4" %}
+          <a class="due-link" href="{% url 'student_exam' e.id %}">{{ e.title }}</a>
+        {% empty %}
+          <p class="small muted">Aucun travail à rendre prochainement.</p>
+        {% endfor %}
+        <a class="side-card-link" href="{% url 'student_todo' %}">Tout afficher</a>
+      </div>
+    </aside>
+    <section class="stream-main">
+      {% for e in stream %}
+      <a class="post" href="{% url 'student_exam' e.id %}">
+        <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
+        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong>
+          <span class="post-date">{{ e.created_at|date:"j M" }}</span></span>
+      </a>
+      {% empty %}
+      <div class="post post-empty">
+        <p class="mb-0"><strong>C'est ici que vous communiquez avec votre classe.</strong><br><span class="muted small">Les examens publiés par votre enseignant s'affichent dans ce flux.</span></p>
+      </div>
+      {% endfor %}
+    </section>
+  </div>
 {% endif %}
+</div>
 {% endblock %}

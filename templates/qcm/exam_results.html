@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Résultats – {{ exam.title }}{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="travaux" %}{% endblock %}
 {% block content %}
-<div class="breadcrumb">
-  {% if exam.classroom %}<a href="{% url 'classroom_detail' exam.classroom.id %}">{{ exam.classroom.name }}</a> › {% endif %}<a href="{% url 'teacher_exam' exam.id %}">{{ exam.title }}</a> › Résultats
-</div>
 <div class="page-head">
   <div><h1>Résultats</h1><p>{{ exam.title }}</p></div>
   <a class="btn" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV (Excel)</a>

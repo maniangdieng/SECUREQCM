@@ -1,17 +1,27 @@
+{% with owner=c.owner %}
 <article class="class-card">
-  <div class="banner banner-{{ c.color }}">
-    <span class="banner-deco"></span>
-    <h3><a href="{% url 'classroom_detail' c.id %}">{{ c.name }}</a></h3>
-    <div class="sub">{{ c.section|default:"" }}{% if c.section and c.subject %} · {% endif %}{{ c.subject|default:"" }}</div>
-    <div class="owner">{{ c.owner.get_full_name|default:c.owner.username }}</div>
+  <a class="class-card-banner bg-{{ c.color }}" href="{% url 'classroom_detail' c.id %}">
+    <span class="class-card-name">{{ c.name }}</span>
+    <span class="class-card-sub">{{ c.section }}</span>
+    {% if not teacher_view %}<span class="class-card-owner">{{ owner.get_full_name|default:owner.username }}</span>{% endif %}
+  </a>
+  {% if not teacher_view %}
+  <span class="class-card-avatar bg-{{ c.color }}" aria-hidden="true">{% if owner.first_name %}{{ owner.first_name|first|upper }}{% else %}{{ owner.username|first|upper }}{% endif %}</span>
+  {% endif %}
+  <div class="class-card-body">
+    {% if teacher_view %}
+      <span class="small muted">{{ c.student_count }} étudiant{{ c.student_count|pluralize }}</span>
+      {% if c.is_archived %}<span class="badge archived">Archivée</span>{% endif %}
+    {% elif c.upcoming %}
+      <span class="small muted">À rendre</span>
+      {% for e in c.upcoming|slice:":3" %}<a class="due-link" href="{% url 'student_exam' e.id %}">{{ e.title }}</a>{% endfor %}
+    {% endif %}
   </div>
-  <div class="body">
-    {% if c.student_count is not None %}{{ c.student_count }} étudiant{{ c.student_count|pluralize }} · {{ c.exam_count }} examen{{ c.exam_count|pluralize }}{% endif %}
-    {% if c.study_level %}<span class="badge" style="margin-left:6px">{{ c.get_study_level_display }}</span>{% endif %}
-    {% if c.is_archived %}<span class="badge archived">Archivée</span>{% endif %}
-  </div>
-  <div class="foot">
-    <a class="btn ghost sm" href="{% url 'classroom_detail' c.id %}">Ouvrir</a>
-    {% if show_code %}<span class="mono small muted" title="Code de la classe">{{ c.join_code }}</span>{% endif %}
+  <div class="class-card-foot">
+    {% if teacher_view %}
+    <a class="icon-btn" href="{% url 'classroom_detail' c.id %}?tab=notes" title="Ouvrir les notes de « {{ c.name }} »" aria-label="Notes">{% include "qcm/_icon.html" with name="grades" %}</a>
+    {% endif %}
+    <a class="icon-btn" href="{% url 'classroom_detail' c.id %}?tab=travaux" title="Travaux et devoirs de « {{ c.name }} »" aria-label="Travaux et devoirs">{% include "qcm/_icon.html" with name="assignment" %}</a>
   </div>
 </article>
+{% endwith %}
