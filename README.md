@@ -54,7 +54,19 @@ Si vous modifiez `models.py`, versionnez la migration générée (`python manage
 2. `docker compose up --build`
 3. `docker compose exec web python manage.py createsuperuser`
 
+Ces étapes servent la page en HTTP sur le port 8000 : pour de vrais utilisateurs, ajouter [HTTPS](docs/HTTPS.md).
+
 Avant un examen réel : [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md).
+
+## Documentation
+
+| Pour qui | Document |
+|---|---|
+| Administrateur | [Guide](docs/GUIDE_ADMINISTRATEUR.md) · [HTTPS](docs/HTTPS.md) · [Sauvegarde et restauration](docs/SAUVEGARDE.md) |
+| Enseignant | [Guide](docs/GUIDE_ENSEIGNANT.md) |
+| Étudiant | [Guide](docs/GUIDE_ETUDIANT.md) |
+| Équipe technique | [Documentation technique](docs/DOCUMENTATION_TECHNIQUE.md) · [Rapport de validation](docs/RAPPORT_VALIDATION.md) |
+| Établissement | [Données personnelles](docs/DONNEES_PERSONNELLES.md) |
 
 ## Parcours en bref
 
