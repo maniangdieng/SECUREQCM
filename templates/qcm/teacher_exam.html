@@ -61,6 +61,18 @@
       {% endif %}
     </div>
 
+    {% if not exam.closed_at and not exam.is_archived %}
+    <div class="card flat">
+      <h3>Inscrire un étudiant</h3>
+      <form method="post" action="{% url 'add_exam_student' exam.id %}">
+        {% csrf_token %}
+        <label>Matricule<input name="student_number" required maxlength="40" autocomplete="off"></label>
+        <button class="btn ghost sm" type="submit">Inscrire</button>
+      </form>
+      <p class="help">Les autres inscrits sont conservés. Un import CSV ultérieur peut remplacer la liste.</p>
+    </div>
+    {% endif %}
+
     <div class="card flat">
       <h3>Liste d'étudiants (CSV)</h3>
       <p class="help">Colonne <code>matricule</code> obligatoire. L'import bascule l'examen en mode « étudiants sélectionnés ».</p>

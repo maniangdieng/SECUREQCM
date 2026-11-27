@@ -19,7 +19,8 @@ from django.views.decorators.http import require_POST
 from ..models import Classroom, ClassroomMembership, Profile, Exam, generate_class_code
 from ..permissions import (role, is_admin, is_teacher_or_admin, can_manage_classroom,
                            is_classroom_student)
-from ..services import enroll_student_in_class_exams, unenroll_student_from_class_exams, visible_exams_for_student
+from ..services import (audit, enroll_student_in_class_exams, unenroll_student_from_class_exams,
+                        visible_exams_for_student)
 from .common import redirect_back
 from .student import annotate_exams_for_student
 
@@ -105,30 +106,35 @@ def update_classroom(request, classroom_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def regenerate_class_code(request, classroom_id):
     classroom = get_object_or_404(Classroom, pk=classroom_id)
     if not can_manage_classroom(request.user, classroom):
         return HttpResponseForbidden()
     classroom.join_code = generate_class_code()
     classroom.save(update_fields=["join_code"])
+    audit(request.user, "Code de classe renouvelé", classroom)
     messages.success(request, f"Nouveau code de classe : {classroom.join_code}. L'ancien code ne fonctionne plus.")
     return redirect_back(request, "classroom_detail", classroom_id=classroom.id)
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def archive_classroom(request, classroom_id):
     classroom = get_object_or_404(Classroom, pk=classroom_id)
     if not (is_admin(request.user) or classroom.owner_id == request.user.id):
         return HttpResponseForbidden("Seul le propriétaire de la classe ou un administrateur peut l'archiver.")
     classroom.is_archived = not classroom.is_archived
     classroom.save(update_fields=["is_archived"])
+    audit(request.user, "Classe archivée" if classroom.is_archived else "Classe restaurée", classroom)
     messages.success(request, "Classe archivée." if classroom.is_archived else "Classe restaurée.")
     return redirect_back(request, "teacher_dashboard")
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def delete_classroom(request, classroom_id):
     classroom = get_object_or_404(Classroom, pk=classroom_id)
     if not (is_admin(request.user) or classroom.owner_id == request.user.id):
@@ -137,6 +143,7 @@ def delete_classroom(request, classroom_id):
         messages.error(request, "Suppression impossible : la classe contient des examens. Archivez-la plutôt.")
         return redirect_back(request, "classroom_detail", classroom_id=classroom.id)
     name = str(classroom)
+    audit(request.user, "Classe supprimée", classroom)
     classroom.delete()
     messages.success(request, f"La classe « {name} » a été supprimée.")
     return redirect("admin_dashboard" if is_admin(request.user) else "teacher_dashboard")
@@ -144,6 +151,7 @@ def delete_classroom(request, classroom_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_coteacher(request, classroom_id):
     classroom = get_object_or_404(Classroom, pk=classroom_id)
     if not (is_admin(request.user) or classroom.owner_id == request.user.id):
@@ -155,15 +163,19 @@ def add_coteacher(request, classroom_id):
     else:
         membership, created = ClassroomMembership.objects.get_or_create(
             classroom=classroom, user=user, defaults={"role": ClassroomMembership.TEACHER})
-        if not created and membership.role != ClassroomMembership.TEACHER:
+        promoted = not created and membership.role != ClassroomMembership.TEACHER
+        if promoted:
             membership.role = ClassroomMembership.TEACHER
             membership.save(update_fields=["role"])
+        if created or promoted:
+            audit(request.user, "Co-enseignant ajouté", classroom, user.username)
         messages.success(request, f"{user.get_full_name() or user.username} est maintenant co-enseignant.")
     return redirect(f"/classes/{classroom.id}/?tab=personnes")
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def add_students_to_classroom(request, classroom_id):
     """Ajoute des étudiants existants à partir d'une liste de matricules (un par ligne, ou séparés par , ;)."""
     classroom = get_object_or_404(Classroom, pk=classroom_id)
@@ -182,6 +194,8 @@ def add_students_to_classroom(request, classroom_id):
         if created:
             enroll_student_in_class_exams(profile.user, classroom)
             added += 1
+    if added:
+        audit(request.user, "Étudiants ajoutés à une classe", classroom, f"{added} ajouté(s)")
     messages.success(request, f"{added} étudiant(s) ajouté(s) à la classe.")
     if unknown:
         messages.warning(request, "Matricules non reconnus (compte inexistant) : " + ", ".join(unknown[:20]))
@@ -190,6 +204,7 @@ def add_students_to_classroom(request, classroom_id):
 
 @login_required
 @require_POST
+@transaction.atomic
 def remove_classroom_member(request, classroom_id, membership_id):
     classroom = get_object_or_404(Classroom, pk=classroom_id)
     membership = get_object_or_404(ClassroomMembership, pk=membership_id, classroom=classroom)
@@ -204,6 +219,7 @@ def remove_classroom_member(request, classroom_id, membership_id):
         return HttpResponseForbidden()
     if membership.role == ClassroomMembership.STUDENT:
         unenroll_student_from_class_exams(membership.user, classroom)
+    audit(request.user, "Membre retiré d'une classe", classroom, membership.user.username)
     membership.delete()
     messages.success(request, "Membre retiré de la classe.")
     return redirect(f"/classes/{classroom.id}/?tab=personnes")

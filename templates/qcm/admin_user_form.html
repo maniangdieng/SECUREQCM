@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Créer un compte{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'admin_dashboard' %}">Administration</a> › <a href="{% url 'admin_users' %}">Comptes</a> › Créer un compte</div>
+<div class="page-head">
+  <div><h1>Créer un compte</h1><p>La personne pourra se connecter avec cet identifiant et ce mot de passe.</p></div>
+</div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  {% for error in form.non_field_errors %}<div class="alert error" role="alert">{{ error }}</div>{% endfor %}
+  <div class="row">
+    <label class="grow">Prénom{{ form.first_name }}</label>
+    <label class="grow">Nom{{ form.last_name }}</label>
+  </div>
+  {% include "qcm/_field_errors.html" with field=form.first_name %}{% include "qcm/_field_errors.html" with field=form.last_name %}
+  <label>Identifiant de connexion{{ form.username }}</label>
+  {% include "qcm/_field_errors.html" with field=form.username %}
+  <label>E-mail <span class="muted">(facultatif)</span>{{ form.email }}</label>
+  {% include "qcm/_field_errors.html" with field=form.email %}
+  <label>Rôle{{ form.role }}</label>
+  {% include "qcm/_field_errors.html" with field=form.role %}
+  <fieldset>
+    <legend>Étudiants uniquement</legend>
+    <div class="row">
+      <label class="grow">Matricule{{ form.student_number }}</label>
+      <label class="grow">Niveau d'études{{ form.study_level }}</label>
+    </div>
+    {% include "qcm/_field_errors.html" with field=form.student_number %}{% include "qcm/_field_errors.html" with field=form.study_level %}
+  </fieldset>
+  <div class="row">
+    <label class="grow">Mot de passe{{ form.password1 }}<span class="help">8 caractères minimum, pas trop courant.</span></label>
+    <label class="grow">Confirmation{{ form.password2 }}</label>
+  </div>
+  {% include "qcm/_field_errors.html" with field=form.password1 %}{% include "qcm/_field_errors.html" with field=form.password2 %}
+  <div class="actions">
+    <button class="btn" type="submit">Créer le compte</button>
+    <a class="btn ghost" href="{% url 'admin_users' %}">Annuler</a>
+  </div>
+</form>
+{% endblock %}

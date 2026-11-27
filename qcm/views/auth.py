@@ -7,8 +7,9 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.urls import reverse
 
-from ..models import Profile, Exam, ExamEnrollment
+from ..models import Profile
 from ..permissions import role
+from ..services import enroll_student_in_level_exams
 
 DASHBOARD_BY_ROLE = {"ADMIN": "admin_dashboard", "TEACHER": "teacher_dashboard", "STUDENT": "student_dashboard"}
 
@@ -69,15 +70,13 @@ def student_register(request):
         else:
             user = User.objects.create_user(username=username, password=password, email=email,
                                             first_name=first_name, last_name=last_name)
-            profile = Profile.objects.get(user=user)
+            profile = user.profile
             profile.role = "STUDENT"
             profile.student_number = student_number
             profile.study_level = study_level
             profile.save()
             # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
-            for exam in Exam.objects.filter(published=True, is_archived=False, closed_at__isnull=True,
-                                            audience_mode="LEVEL", target_level=study_level):
-                ExamEnrollment.objects.get_or_create(exam=exam, student=user, defaults={"source": "LEVEL"})
+            enroll_student_in_level_exams(user)
             login(request, user)
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
             return redirect("student_dashboard")

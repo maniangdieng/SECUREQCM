@@ -11,12 +11,21 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from .models import Attempt, Exam, ExamEnrollment, ClassroomMembership, Question, Response
+from .models import Attempt, AuditLog, Exam, ExamEnrollment, ClassroomMembership, Question, Response
 
 
 # Événements de sécurité : seules ces violations sont comptées.
 VIOLATION_LABELS = {"TAB_SWITCH": "Changement d'onglet", "FULLSCREEN_EXIT": "Sortie du plein écran"}
 RESUME_EVENT = "RESUME_AUTHORIZED"
+
+
+# --------------------------------------------------------------------------- #
+# Journal des opérations administratives
+# --------------------------------------------------------------------------- #
+def audit(actor, action, target, details=""):
+    """Journalise une opération. `target` est un objet encore en base : appeler avant une suppression."""
+    AuditLog.objects.create(actor=actor, actor_name=actor.username, action=action,
+                            target=f"{target} (#{target.pk})"[:300], details=details[:500])
 
 
 # --------------------------------------------------------------------------- #
@@ -47,6 +56,13 @@ def enroll_audience(exam):
     return created
 
 
+def enroll_student_in_level_exams(student):
+    """Nouveau compte étudiant : l'affecter aux examens de son niveau déjà publiés."""
+    for exam in Exam.objects.filter(published=True, is_archived=False, closed_at__isnull=True,
+                                    audience_mode="LEVEL", target_level=student.profile.study_level):
+        ExamEnrollment.objects.get_or_create(exam=exam, student=student, defaults={"source": "LEVEL"})
+
+
 def enroll_student_in_class_exams(student, classroom):
     """À l'arrivée d'un étudiant dans une classe, l'affecter aux examens CLASS déjà publiés."""
     for exam in Exam.objects.filter(classroom=classroom, audience_mode="CLASS", published=True, is_archived=False,
@@ -65,6 +81,8 @@ def visible_exams_for_student(user, classroom=None):
     """Examens publiés, non archivés, auxquels l'étudiant a accès ; clôturés : seulement s'il les a commencés."""
     level = getattr(getattr(user, "profile", None), "study_level", "")
     criteria = Q(audience_mode="LIST", enrollments__student=user)
+    # Inscription individuelle ou par liste : elle vaut quel que soit le public visé par l'examen.
+    criteria |= Q(enrollments__student=user, enrollments__source="LIST")
     criteria |= Q(audience_mode="CLASS", classroom__memberships__user=user,
                   classroom__memberships__role=ClassroomMembership.STUDENT)
     if level:

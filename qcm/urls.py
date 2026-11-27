@@ -11,6 +11,8 @@ urlpatterns = [
     # Administration
     path("dashboard/admin/", views.admin_dashboard, name="admin_dashboard"),
     path("dashboard/admin/users/", views.admin_users, name="admin_users"),
+    path("dashboard/admin/users/new/", views.admin_create_user, name="admin_create_user"),
+    path("dashboard/admin/journal/", views.admin_journal, name="admin_journal"),
     path("dashboard/admin/users/<int:user_id>/role/", views.admin_set_role, name="admin_set_role"),
     path("dashboard/admin/users/<int:user_id>/toggle-active/", views.admin_toggle_active, name="admin_toggle_active"),
     path("dashboard/admin/exams/<int:exam_id>/archive/", views.archive_exam, name="admin_archive_exam"),
@@ -43,6 +45,7 @@ urlpatterns = [
     path("teacher/exams/<int:exam_id>/question/<int:question_id>/delete/", views.delete_question, name="delete_question"),
     path("teacher/exams/<int:exam_id>/publish/", views.publish_exam, name="publish_exam"),
     path("teacher/exams/<int:exam_id>/students/import/", views.import_exam_students, name="import_exam_students"),
+    path("teacher/exams/<int:exam_id>/students/add/", views.add_exam_student, name="add_exam_student"),
     path("teacher/exams/<int:exam_id>/results/", views.exam_results, name="exam_results"),
     path("teacher/exams/<int:exam_id>/results/export/", views.export_exam_results, name="export_exam_results"),
     path("teacher/exams/<int:exam_id>/results/export.xlsx", views.export_exam_results, {"fmt": "xlsx"},
