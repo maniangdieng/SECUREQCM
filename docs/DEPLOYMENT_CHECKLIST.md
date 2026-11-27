@@ -5,6 +5,7 @@
 - [ ] Configurer `DJANGO_ALLOWED_HOSTS` avec le domaine réel.
 - [ ] Déployer derrière HTTPS (obligatoire) : [HTTPS.md](HTTPS.md).
 - [ ] Mettre `DJANGO_SECURE_COOKIES=1` et `DJANGO_CSRF_TRUSTED_ORIGINS=https://…`, puis lancer `check --deploy`.
+- [ ] Vérifier `AXES_FAILURE_LIMIT` / `AXES_COOLOFF_MINUTES` (blocage après échecs de connexion). Avec `docker-compose.https.yml`, `AXES_BEHIND_PROXY=1` est déjà réglé ; derrière un autre reverse proxy, le mettre aussi pour que django-axes lise la vraie IP (`X-Forwarded-For`), sinon tous les étudiants partagent l'IP du proxy. **Seulement** si le port de l'application n'est pas exposé directement.
 - [ ] Planifier les sauvegardes et **essayer une restauration** : [SAUVEGARDE.md](SAUVEGARDE.md).
 - [ ] Créer les comptes et affecter explicitement les rôles (page « Comptes » de l'application).
 - [ ] Fixer la durée de session (`DJANGO_SESSION_HOURS`, 8 par défaut, 4 au minimum).

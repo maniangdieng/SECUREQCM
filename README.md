@@ -87,6 +87,17 @@ Avant un examen réel : [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLI
 | Équipe technique | [Documentation technique](docs/DOCUMENTATION_TECHNIQUE.md) · [Rapport de validation](docs/RAPPORT_VALIDATION.md) |
 | Établissement | [Données personnelles](docs/DONNEES_PERSONNELLES.md) |
 
+## Blocage après échecs de connexion
+
+Après 5 mots de passe erronés (`AXES_FAILURE_LIMIT`), le couple identifiant + adresse IP est bloqué 15 minutes
+(`AXES_COOLOFF_MINUTES`). Les camarades sur le même réseau ne sont pas touchés. Pour débloquer tout de suite un étudiant :
+
+```bash
+python manage.py axes_reset_username <identifiant>     # sous Docker : docker compose exec web python manage.py ...
+```
+
+Les tentatives sont aussi visibles et supprimables dans `/admin/` (section *Axes*).
+
 ## Parcours en bref
 
 | Rôle | Ce qu'il fait |

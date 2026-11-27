@@ -97,7 +97,8 @@ def student_register(request):
             profile.save()
             # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
             enroll_student_in_level_exams(user)
-            login(request, user)
+            # Plusieurs backends sont configurés (django-axes) : préciser lequel a authentifié.
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
             return redirect("student_dashboard")
     return render(request, "registration/register.html", {"levels": Profile.LEVEL_CHOICES, "form_data": form_data})
