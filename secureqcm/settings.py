@@ -114,6 +114,17 @@ if os.getenv("DJANGO_SECURE_COOKIES", "0") == "1":
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# E-mails (réinitialisation du mot de passe). Console en développement ;
+# en production : DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend.
+EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("DJANGO_EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("DJANGO_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("DJANGO_EMAIL_USE_TLS", "1") == "1"
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.getenv("DJANGO_DEFAULT_FROM_EMAIL", "Secure QCM <ne-pas-repondre@localhost>")
+
 # Import de QCM : limite applicative des fichiers téléversés (15 Mo).
 DATA_UPLOAD_MAX_MEMORY_SIZE = 16 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 16 * 1024 * 1024
