@@ -1,4 +1,6 @@
+import json
 import re
+from decimal import Decimal
 
 LETTERS = "ABCDEFGH"
 
@@ -11,6 +13,22 @@ MAX_XLSX_ROWS = 2000
 MAX_XLSX_COLS = 20
 MAX_QUESTIONS = 500
 MAX_TEXT_LENGTH = 5000
+MAX_OPTION_LENGTH = 500
+MIN_POINTS, MAX_POINTS = Decimal("0.1"), Decimal("100")  # mêmes bornes que la saisie manuelle
+
+
+class InvalidQuestions(ValueError):
+    """Au moins une question est invalide : rien n'est importé."""
+
+    def __init__(self, errors):
+        super().__init__("\n".join(errors))
+        self.errors = errors
+
+
+def _check_question_count(count):
+    # Le résultat est stocké en session pour la prévisualisation : on borne sa taille.
+    if count > MAX_QUESTIONS:
+        raise ValueError(f"Le sujet contient plus de {MAX_QUESTIONS} questions. Découpez-le en plusieurs examens.")
 
 
 def _check_zip_archive(data, label):
@@ -88,7 +106,7 @@ def parse_text_questions(text):
         for j, (idx, number, first) in enumerate(starts):
             end = starts[j+1][0] if j+1 < len(starts) else len(lines)
             block = ([first] if first else []) + lines[idx+1:end]
-            stem, opts, correct = [], {}, []
+            stem, opts, correct, errors = [], {}, [], []
             for line in block:
                 am = re.match(r"^(?:BONNE\s+)?R[ÉE]PONSE\s*[:=]\s*(.+)$", line, re.I)
                 if am:
@@ -96,19 +114,22 @@ def parse_text_questions(text):
                     continue
                 m = re.match(r"^([A-H])\s*[\)\].:\-]\s*(.*)$", line, re.I)
                 if m:
-                    opts[m.group(1).upper()] = m.group(2).strip()
+                    letter = m.group(1).upper()
+                    if letter in opts:
+                        errors.append(f"proposition {letter} en double")
+                    opts[letter] = m.group(2).strip()
                 elif opts:
                     last = list(opts.keys())[-1]
                     opts[last] = (opts[last] + " " + line).strip()
                 else:
                     stem.append(line)
-            if len(opts) >= 2 and stem:
-                questions.append({
-                    "number": number,
-                    "text": " ".join(stem).strip(),
-                    "options": [{"letter": k, "text": v} for k, v in opts.items()],
-                    "correct": correct,
-                })
+            questions.append({
+                "number": number,
+                "text": " ".join(stem).strip(),
+                "options": [{"letter": k, "text": v} for k, v in opts.items()],
+                "correct": correct,
+                "errors": errors,
+            })
     if not questions:
         raise ValueError("Aucune question détectée. Vérifiez la mise en forme du document : numéro de question puis propositions A), B), C), D).")
     return questions
@@ -161,43 +182,137 @@ def parse_xlsx(uploaded):
             return None
         qi = col("question", "énoncé", "enonce")
         # L'en-tête est passé en minuscules : chercher "a", "b"… et non "A", "B"…
-        option_cols = [col(x.lower()) for x in LETTERS[:4]]
+        option_cols = [col(x.lower()) for x in LETTERS]
         ai = col("réponse", "reponse", "correcte")
     else:
         qi, option_cols, ai = 0, [1,2,3,4], 5
     if qi is None:
         raise ValueError("La colonne Question/Énoncé est introuvable dans le fichier Excel.")
+
+    def cell(row, index):
+        if index is None or index >= len(row) or row[index] is None:
+            return ""
+        return str(row[index]).strip()
+
     result = []
     for number, row in enumerate(data, 1):
-        if qi >= len(row) or not row[qi]:
-            continue
-        opts = []
-        for letter, ci in zip(LETTERS, option_cols):
-            if ci is not None and ci < len(row) and row[ci] is not None:
-                opts.append({"letter": letter, "text": str(row[ci]).strip()})
-        if len(opts) < 2:
-            continue
-        correct = _normalise_answer(row[ai]) if ai is not None and ai < len(row) else []
-        result.append({"number": number, "text": str(row[qi]).strip(), "options": opts, "correct": correct})
+        text = cell(row, qi)
+        opts = [{"letter": letter, "text": cell(row, ci)} for letter, ci in zip(LETTERS, option_cols) if cell(row, ci)]
+        answer = cell(row, ai)
+        if not (text or opts or answer):
+            continue  # ligne vide : ce n'est pas une question
+        result.append({"number": number, "line": number + has_header, "text": text, "options": opts,
+                       "correct": _normalise_answer(answer)})
     if not result:
         raise ValueError("Aucune ligne de question exploitable. Consultez le modèle Excel fourni dans l'aide.")
     return result
 
 
-def parse_uploaded_questions(uploaded):
-    if uploaded.name.lower().endswith((".xlsx", ".xlsm")):
-        questions = parse_xlsx(uploaded)
+def _json_question(number, item):
+    if not isinstance(item, dict):
+        return {"number": number, "invalid": "format invalide (un objet est attendu)", "correct": []}
+    errors, options, correct = [], [], []
+    raw_options = item.get("options")
+    raw_options = raw_options if isinstance(raw_options, list) else []
+    if len(raw_options) > len(LETTERS):
+        errors.append(f"plus de {len(LETTERS)} propositions")
+    for letter, option in zip(LETTERS, raw_options):
+        option = option if isinstance(option, dict) else {}
+        text = option.get("text")
+        options.append({"letter": letter, "text": text.strip() if isinstance(text, str) else ""})
+        is_correct = option.get("correct", False)
+        if not isinstance(is_correct, bool):
+            errors.append(f"proposition {letter} : « correct » doit valoir true ou false")
+        elif is_correct:
+            correct.append(letter)
+    text = item.get("text")
+    question = {"number": number, "text": text.strip() if isinstance(text, str) else "",
+                "options": options, "correct": correct, "errors": errors}
+    if item.get("type") is not None:
+        if item["type"] in ("SINGLE", "MULTIPLE"):
+            question["type"] = item["type"]
+        else:
+            errors.append("type inconnu (SINGLE ou MULTIPLE)")
+    raw_points = item.get("points", 1)
+    points = Decimal(str(raw_points)) if type(raw_points) in (int, float) else None
+    if (points is None or not points.is_finite() or not MIN_POINTS <= points <= MAX_POINTS
+            or points != points.quantize(Decimal("0.01"))):
+        errors.append("barème invalide (nombre entre 0.1 et 100, deux décimales au plus)")
     else:
-        questions = parse_text_questions(extract_text(uploaded))
-    # Le résultat est stocké en session pour la prévisualisation : on borne sa taille.
-    if len(questions) > MAX_QUESTIONS:
-        raise ValueError(f"Le sujet contient plus de {MAX_QUESTIONS} questions. Découpez-le en plusieurs examens.")
-    for q in questions:
-        q["text"] = q["text"][:MAX_TEXT_LENGTH]
-        for option in q["options"]:
-            option["text"] = option["text"][:500]
-    return questions
+        question["points"] = str(points)
+    return question
 
+
+def parse_json(raw):
+    """Lit {"questions": [{"text", "type", "points", "options": [{"text", "correct"}]}]}.
+
+    Renvoie (document, questions). Les défauts de chaque question sont notés pour check_questions().
+    """
+    try:
+        document = json.loads(raw.decode("utf-8-sig"))
+    except (ValueError, RecursionError) as exc:
+        raise ValueError(f"Fichier JSON illisible : {exc}")
+    items = document.get("questions") if isinstance(document, dict) else None
+    if not isinstance(items, list) or not items:
+        raise ValueError("Le fichier JSON doit contenir une liste « questions » non vide.")
+    _check_question_count(len(items))  # avant de construire quoi que ce soit
+    return document, [_json_question(number, item) for number, item in enumerate(items, 1)]
+
+
+def _text_errors(label, text, limit):
+    if len(text) > limit:
+        return [f"{label} de plus de {limit} caractères"]
+    # NUL (refusé par PostgreSQL) et demi-codets UTF-16 isolés (inaffichables), possibles en JSON.
+    if any(c == "\x00" or "\ud800" <= c <= "\udfff" for c in text):
+        return [f"{label} : caractère non autorisé"]
+    return []
+
+
+def _question_errors(question):
+    if "invalid" in question:
+        return [question["invalid"]]
+    errors = list(question.get("errors", []))
+    if not question["text"]:
+        errors.append("énoncé vide")
+    errors += _text_errors("énoncé", question["text"], MAX_TEXT_LENGTH)
+    if len(question["options"]) < 2:
+        errors.append("au moins deux propositions sont nécessaires")
+    for option in question["options"]:
+        if not option["text"]:
+            errors.append(f"proposition {option['letter']} vide")
+        errors += _text_errors(f"proposition {option['letter']}", option["text"], MAX_OPTION_LENGTH)
+    letters = {option["letter"] for option in question["options"]}
+    for letter in question["correct"]:
+        if letter not in letters:
+            errors.append(f"la réponse {letter} ne correspond à aucune proposition")
+    if question.get("type") == "SINGLE" and len(question["correct"]) > 1:
+        errors.append("une question à réponse unique ne peut avoir qu'une bonne réponse")
+    return errors
+
+
+def check_questions(questions):
+    """À appeler une fois les bonnes réponses connues : tout ou rien, chaque défaut est signalé."""
+    _check_question_count(len(questions))
+    errors = []
+    for question in questions:
+        label = f"Question {question['number']}"
+        if "line" in question:
+            label += f" (ligne {question['line']})"
+        errors += [f"{label} : {reason}" for reason in _question_errors(question)]
+    if errors:
+        raise InvalidQuestions(errors)
+
+
+def parse_uploaded_questions(uploaded):
+    """Lit le sujet sans le valider : l'appelant doit ensuite passer par check_questions()."""
+    name = uploaded.name.lower()
+    if name.endswith(".json"):
+        return parse_json(uploaded.read())[1]
+    if name.endswith((".xlsx", ".xlsm")):
+        return parse_xlsx(uploaded)
+    if name.endswith((".pdf", ".docx")):
+        return parse_text_questions(extract_text(uploaded))
+    raise ValueError("Format non pris en charge. Utilisez PDF, DOCX, XLSX ou JSON.")
 
 
 def parse_answer_key_xlsx(uploaded):
