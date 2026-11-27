@@ -4,14 +4,24 @@
 
 Sur la page **Connexion**, saisir identifiant et mot de passe. Première fois : **Créer un compte étudiant** (prénom,
 nom, **matricule**, niveau, e-mail facultatif, identifiant, mot de passe d'au moins 8 caractères). Un matricule ne
-sert qu'à un seul compte. Mot de passe oublié : contacter l'administration (après fusion de la PR #31, le lien
-**Mot de passe oublié ?** envoie un e-mail si le compte en a un).
+sert qu'à un seul compte.
+
+Mot de passe oublié : le lien **Mot de passe oublié ?** envoie un e-mail si le compte en a un ; sinon, contacter
+l'administration.
+
+Après **5 échecs**, la connexion est bloquée **15 minutes** (durée par défaut). Pendant un examen, le signaler au
+surveillant : un administrateur peut lever le blocage.
 
 ## Rejoindre une classe et un examen
 
-1. **+ Rejoindre une classe** : saisir le code de classe (7 caractères) donné par l'enseignant.
-2. Dans **Examens à faire**, saisir le **code d'examen** puis **Valider**.
-3. **Commencer** ouvre les consignes.
+1. **Rejoindre une classe** (bouton **+**) : saisir le code de classe (7 caractères) donné par l'enseignant.
+2. Ouvrir l'examen : dans la classe, onglet **Travaux et devoirs** ; ou menu **À faire** ; ou, sur l'accueil,
+   **Autres examens** pour un examen hors classe.
+3. Saisir le **code d'accès de l'examen**, puis **Valider le code**.
+4. **Commencer l'examen** ouvre les consignes.
+
+Un examen peut avoir des heures d'ouverture et de fermeture. Avant l'ouverture, le code peut être validé mais l'examen
+ne peut pas être commencé. Après la fermeture, il ne peut plus l'être.
 
 ## Avant de commencer
 
@@ -27,7 +37,8 @@ Cocher la case, **Commencer l'examen**, puis **Commencer en plein écran**.
 ## Pendant l'examen
 
 - La sélection est enregistrée automatiquement : attendre **Enregistré**.
-- **Valider et continuer** passe à la question suivante. **Aucun retour en arrière.**
+- **Valider et continuer** passe à la question suivante (**Terminer l'examen** à la dernière). **Aucun retour en
+  arrière.**
 - À la fin du temps d'une question, la sélection enregistrée est gardée et l'examen avance.
 - Choix multiples : la règle (points partiels ou tout ou rien) est indiquée sur la question.
 
@@ -40,21 +51,24 @@ Cocher la case, **Commencer l'examen**, puis **Commencer en plein écran**.
 | 1re violation | avertissement |
 | 2e violation | **examen clôturé** |
 
-Les pertes de focus plus brèves et les redimensionnements sont notés dans un journal, sans compter comme violations. Un filigrane
-à votre nom couvre l'écran.
+Les pertes de focus plus brèves et les redimensionnements sont notés dans un journal, sans compter comme violations. Un
+filigrane à votre nom couvre l'écran.
 
 ### En cas de problème
 
 | Message ou situation | Que faire |
 |---|---|
 | « Connexion au serveur perdue : nouvel essai en cours… » | rester sur la page ; vérifier le réseau ; prévenir le surveillant |
-| « Session expirée » | **Se reconnecter**, puis **Reprendre** ; le temps continue de s'écouler |
-| Page fermée ou appareil éteint | prévenir le surveillant, se reconnecter vite et **Reprendre** ; fermer la page peut avoir été compté comme une violation |
+| « Session expirée » | **Se reconnecter**, rouvrir l'examen, **Reprendre l'examen** ; le temps continue de s'écouler |
+| Page fermée ou appareil éteint | prévenir le surveillant, se reconnecter vite et **Reprendre l'examen** ; fermer la page peut avoir été compté comme une violation |
 | Examen clôturé pour sécurité | voir l'enseignant, seul à pouvoir autoriser une reprise (avec l'administration) |
 
 ## Après l'examen
 
-La page **Évaluation clôturée** affiche le score. Les examens passés se trouvent dans **Examens terminés**.
+Si les notes ne sont pas encore publiées, la page **Copie remise** confirme que la copie est enregistrée. La note
+apparaît quand l'enseignant la publie (ou dès la remise, s'il l'a prévu). Les examens terminés se trouvent dans
+**À faire → Terminés**.
+
 Pour contester une note ou signaler un incident, s'adresser à l'enseignant.
 
 ## Vos données

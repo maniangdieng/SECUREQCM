@@ -6,7 +6,8 @@ Contexte, règles métier et reste à faire : [PROJET_ET_PERSPECTIVES.md](PROJET
 
 Django 5 (rendu côté serveur, un peu de JavaScript sans bibliothèque), SQLite en développement, PostgreSQL 16 et
 Gunicorn en production (Docker Compose), fichiers statiques servis par WhiteNoise, Caddy pour [HTTPS](HTTPS.md).
-Import et export : `pypdf`, `python-docx`, `openpyxl`. Dépendances : [`requirements.txt`](../requirements.txt).
+Import et export : `pypdf`, `python-docx`, `openpyxl`. Blocage des connexions : `django-axes`. Dépendances :
+[`requirements.txt`](../requirements.txt).
 
 ## Organisation du code
 
@@ -17,9 +18,10 @@ qcm/
   permissions.py      toutes les règles d'accès
   services.py         logique partagée : inscriptions, échéances, notation, résultats, journal
   forms.py            création de compte
-  importers.py        lecture des sujets (PDF, Word, Excel)
+  importers.py        lecture des sujets (PDF, Word, Excel, JSON)
+  auth_backends.py    blocage des connexions ; client_ip.py : adresse IP derrière le proxy
   views/              admin, auth, classrooms, teacher, imports, student, attempts, results, common
-  management/commands close_expired_attempts, import_qcm
+  management/commands close_expired_attempts, import_qcm, seed_demo
   migrations/
   tests*.py
 templates/            pages HTML ; le script de passation est dans qcm/take_exam.html
@@ -107,26 +109,40 @@ Variables d'environnement (voir [`.env.example`](../.env.example)) :
 | `GUNICORN_WORKERS` | nombre de processus Gunicorn (≈ 2 × cœurs + 1) | `3` |
 | `GUNICORN_CMD_ARGS` | autres options Gunicorn ; `--workers` y est ignoré (la commande l'emporte) | |
 
-Après fusion de la PR #31, pour l'envoi d'e-mails : `DJANGO_EMAIL_BACKEND` (par défaut la console, qui écrit le lien
-de réinitialisation dans les journaux : **développement uniquement**), `DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT`,
-`DJANGO_EMAIL_HOST_USER`, `DJANGO_EMAIL_HOST_PASSWORD`, `DJANGO_EMAIL_USE_TLS`, `DJANGO_DEFAULT_FROM_EMAIL`.
+Blocage des connexions (par couple identifiant + adresse IP, remis à zéro après une connexion réussie) :
+
+| Variable | Effet | Défaut |
+|---|---|---|
+| `AXES_ENABLED` | `0` désactive le blocage et le journal des connexions | `1` |
+| `AXES_FAILURE_LIMIT` | nombre d'échecs avant blocage | `5` |
+| `AXES_COOLOFF_MINUTES` | durée du blocage | `15` |
+| `AXES_BEHIND_PROXY` | `1` seulement si l'application n'est joignable **que** par le proxy ([HTTPS](HTTPS.md)) | `0` |
+
+Envoi d'e-mails : `DJANGO_EMAIL_BACKEND` (par défaut la console, qui écrit le lien de réinitialisation dans les
+journaux : **développement uniquement**), `DJANGO_EMAIL_HOST`, `DJANGO_EMAIL_PORT`, `DJANGO_EMAIL_HOST_USER`,
+`DJANGO_EMAIL_HOST_PASSWORD`, `DJANGO_EMAIL_USE_TLS`, `DJANGO_DEFAULT_FROM_EMAIL`.
 
 ## Commandes
 
 ```bash
 python manage.py close_expired_attempts      # à planifier chaque minute
 python manage.py import_qcm --help           # import d'un sujet JSON en ligne de commande
+python manage.py seed_demo                   # données de démonstration (--students, --reset)
+python manage.py axes_reset_username <identifiant>   # lever un blocage de connexion
 ```
 
-`import_qcm` a son **propre format JSON**, différent de celui de l'import web de la PR #36 : chaque question a un
+`seed_demo` crée des comptes au mot de passe connu : il refuse de s'exécuter avec `DJANGO_DEBUG=0`, sauf `--force`.
+
+`import_qcm` a son **propre format JSON**, différent de celui de l'import web : chaque question a un
 `number`, un `text` et exactement 4 propositions dont une seule correcte. Son option `--seconds` est enregistrée mais
 le temps réel reste la durée totale partagée. Cette commande n'écrit rien au journal des opérations.
 
 ## Journaux
 
 `AuditLog` enregistre les opérations sensibles (appeler `services.audit(acteur, action, objet, détail)` pour toute
-nouvelle action de ce type). `SecurityEvent` enregistre les événements de passation. L'application ne configure pas de
-journalisation applicative propre : conserver les journaux des conteneurs (`docker compose logs`).
+nouvelle action de ce type). `SecurityEvent` enregistre les événements de passation, `django-axes` les connexions
+([ce qui est conservé](DONNEES_PERSONNELLES.md)). L'application ne configure pas de journalisation applicative propre :
+conserver les journaux des conteneurs (`docker compose logs`).
 
 ## Développer
 

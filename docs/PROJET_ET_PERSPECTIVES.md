@@ -2,7 +2,7 @@
 
 *Document de travail de l'équipe. Rédigé le 25/11/2026, après la reprise du projet transmis par le professeur.*
 
-*Mise à jour du 27/11/2026 : règles du §1.2 et cases du §3. Les évolutions cochées sont dans des pull requests à relire ;
+*Mise à jour du 27/11/2026 : règles du §1.2 et cases du §3. Les évolutions cochées sont fusionnées dans `main` ;
 voir le [rapport de validation](RAPPORT_VALIDATION.md). La copie PDF date du 25/11.*
 
 ---
@@ -111,27 +111,27 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 ### 3.1 Sécurité et fiabilité de l'examen
 
 - [x] **P1 : passage d'examen sans rechargement de page.** Aujourd'hui chaque question recharge la page. Or le navigateur quitte le plein écran à chaque navigation, et l'étudiant doit recliquer sur « Continuer en plein écran » à chaque question. Il faut soumettre les réponses en `fetch()` et charger la question suivante en JSON. *(fichiers : `views/attempts.py`, `take_exam.html`)* *(PR #22)*
-- [ ] **P1 : vérifier les faux positifs en conditions réelles.** Un `alert()` d'avertissement ou un changement d'onglet peut faire sortir du plein écran et générer **deux événements pour une seule action**. Le verrou `reporting` du JavaScript ne le couvre qu'en partie. À tester sur Chrome, Firefox et Edge, puis à remplacer par une modale HTML et un délai anti-doublon côté serveur.
-- [ ] **P1 : limiter les tentatives de connexion** (bruteforce), par exemple avec `django-axes`.
-- [ ] **P1 : test de charge** avec l'effectif maximal (ex. 200 étudiants simultanés) sur la machine cible.
+- [ ] **P1 : vérifier les faux positifs en conditions réelles.** Un avertissement ou un changement d'onglet pouvait générer **deux événements pour une seule action**. La modale HTML et le délai anti-doublon côté serveur sont en place *(PR #22 et #45)* et Chrome sous Linux a été essayé le 27/11. **Reste à tester sur Firefox et Edge.**
+- [x] **P1 : limiter les tentatives de connexion** (bruteforce) avec `django-axes`. *(PR #19)*
+- [ ] **P1 : test de charge** avec l'effectif maximal (ex. 200 étudiants simultanés) sur la machine cible. Un [essai à 200 étudiants](TEST_DE_CHARGE.md) a réussi sur une machine de développement.
 - [ ] **P2 : intégration Safe Exam Browser** (fichier `.seb`, vérification des en-têtes BEK/CK).
-- [ ] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin) : aujourd'hui un examen publié reste ouvert indéfiniment.
+- [x] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin), facultative. *(PR #38)*
 - [x] **P2 : action enseignant « autoriser une reprise »** après une clôture de sécurité contestée (avec trace dans le journal), puisque la clôture est définitive par conception. *(PR #22)*
 - [x] **P2 : supprimer un enseignant** qui possède des examens avec tentatives provoque une erreur (`Exam.teacher` en CASCADE mais `Attempt.exam` en PROTECT). Décider : `PROTECT` ou transfert des examens à un autre enseignant. *(PR #22)*
 - [x] **P3 : journal d'audit** des opérations administratives (comptes, rôles, examens, inscriptions, classes), en lecture seule.
 
 ### 3.2 Fonctionnalités façon Google Classroom
 - [ ] **P2 : flux de la classe (annonces)** : l'enseignant publie un message et les étudiants le voient dans la classe.
-- [ ] **P2 : publication des notes** : l'enseignant choisit quand les étudiants voient leur note (aujourd'hui le score s'affiche immédiatement en fin d'examen).
-- [ ] **P2 : page « Notes » de la classe** : tableau étudiants × examens, avec export.
-- [ ] **P2 : invitation par e-mail** (étudiants et co-enseignants) et **réinitialisation du mot de passe** par e-mail. Il faut configurer `EMAIL_BACKEND` et ajouter les templates `registration/password_reset_*`.
-- [ ] **P2 : page « Mon profil »** : changer son mot de passe ou son e-mail. Les templates `registration/password_change_*` manquent : Django affiche pour l'instant ceux de l'admin.
+- [x] **P2 : publication des notes** : l'enseignant choisit quand les étudiants voient leur note. *(PR #38)*
+- [ ] **P2 : page « Notes » de la classe** : le tableau étudiants × examens existe ; **reste l'export**.
+- [ ] **P2 : invitation par e-mail** (étudiants et co-enseignants). La **réinitialisation du mot de passe** par e-mail est faite *(PR #31)*.
+- [x] **P2 : page « Mon profil »** : changer son mot de passe ou son e-mail. *(PR #30)*
 - [ ] **P3 : thèmes et sujets** dans une classe (regrouper les examens par chapitre).
 - [x] **P3 : archiver un examen depuis l'espace enseignant** (aujourd'hui réservé à l'admin). *(PR #33)*
 
 ### 3.3 Gestion des examens et questions
-- [ ] **P2 : modifier une question** d'un brouillon (aujourd'hui : supprimer puis recréer) et **réordonner** les questions.
-- [ ] **P2 : dupliquer un examen** (vers la même classe ou une autre), pour réutiliser un sujet d'une année sur l'autre.
+- [x] **P2 : modifier une question** d'un brouillon et **réordonner** les questions. *(PR #38)*
+- [x] **P2 : dupliquer un examen** (vers la même classe ou une autre), pour réutiliser un sujet d'une année sur l'autre. *(PR #38)*
 - [ ] **P2 : banque de questions** réutilisable par enseignant, et tirage aléatoire de N questions parmi M.
 - [ ] **P3 : images dans les questions** (`ImageField` + `MEDIA_ROOT`).
 - [ ] **P3 : OCR** pour les PDF scannés (Tesseract).
@@ -152,9 +152,9 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 
 ### 3.6 Qualité et outillage de l'équipe
 - [x] **P1 : initialiser le dépôt Git** et le pousser sur GitHub ou GitLab (le dossier reçu n'est pas un dépôt).
-- [ ] **P2 : intégration continue** (GitHub Actions) : `python manage.py check` et `python manage.py test` à chaque pull request.
-- [ ] **P2 : linter et formateur** : `ruff` + `ruff format`, avec un hook `pre-commit`.
-- [ ] **P3 : fixtures de démonstration** (`python manage.py loaddata demo.json`) avec des comptes **fictifs**, pour les démonstrations sans vraies données.
+- [x] **P2 : intégration continue** (GitHub Actions) : `python manage.py check` et `python manage.py test` à chaque pull request. *(PR #18)*
+- [ ] **P2 : linter et formateur** : `ruff` et son hook `pre-commit` sont en place *(PR #18)* ; **reste `ruff format`**.
+- [x] **P3 : données de démonstration** avec des comptes **fictifs** (`python manage.py seed_demo`), pour les démonstrations sans vraies données. *(PR #20)*
 - [ ] **P3 : accessibilité** (contrastes, navigation au clavier, lecteurs d'écran) et **mode sombre** (les variables CSS sont prêtes).
 
 ---
