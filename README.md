@@ -33,6 +33,21 @@ python manage.py runserver 0.0.0.0:8000
 python manage.py test qcm
 ```
 
+## Qualité du code
+
+La CI (GitHub Actions) lance à chaque push et pull request : `ruff check .`, `python manage.py check`,
+la vérification des migrations oubliées et `python manage.py test qcm`. Une PR ne doit pas être fusionnée si la CI est rouge.
+
+En local, avant de pousser :
+
+```bash
+pip install ruff pre-commit
+pre-commit install        # une seule fois : ruff tournera à chaque commit
+ruff check .              # ou à la main
+```
+
+Si vous modifiez `models.py`, versionnez la migration générée (`python manage.py makemigrations`), sinon la CI échoue.
+
 ## Déploiement (Docker + PostgreSQL)
 
 1. `cp .env.example .env` puis renseigner `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_CSRF_TRUSTED_ORIGINS`.
