@@ -96,6 +96,22 @@ def visible_exams_for_student(user, classroom=None):
     return qs.distinct().select_related("classroom").order_by("-created_at")
 
 
+def exam_window_message(exam, now=None):
+    """
+    Raison pour laquelle une NOUVELLE tentative est refusée (None si l'examen est ouvert).
+    Une seule règle pour la clôture manuelle (closed_at) et la fenêtre programmée (opens_at / closes_at).
+    Une tentative déjà commencée n'est jamais concernée : elle va au bout de sa durée.
+    """
+    state = exam.window_state(now)
+    if state == "BEFORE":
+        return f"Cet examen ouvrira le {timezone.localtime(exam.opens_at):%d/%m/%Y à %H:%M}."
+    if state == "AFTER":
+        if exam.closed_at:
+            return "Cet examen a été clôturé par l'enseignant : aucune nouvelle tentative n'est possible."
+        return f"Cet examen est fermé depuis le {timezone.localtime(exam.closes_at):%d/%m/%Y à %H:%M}."
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # Déroulement d'une tentative (temps contrôlé côté serveur)
 # --------------------------------------------------------------------------- #

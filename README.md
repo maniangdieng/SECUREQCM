@@ -5,6 +5,16 @@ un super-administrateur, des enseignants qui créent leurs classes, des étudian
 
 > Description complète, architecture, règles métier et **ce qui reste à faire** : [`docs/PROJET_ET_PERSPECTIVES.md`](docs/PROJET_ET_PERSPECTIVES.md)
 
+## Ajouts — Ablaye Faye
+
+- **Publication des notes** : champ `Exam.results_published`, page de fin « Copie remise » sans note tant que non publié, bouton « Publier les notes » côté enseignant.
+- **Duplication d'examen** : action « Dupliquer », copie examen + questions + propositions en brouillon, même classe ou autre classe, nouveau code d'accès, aucune tentative ni affectation copiée.
+- **Édition des questions** : énoncé, type, propositions, bonnes réponses, points ; réordonnancement monter/descendre ; verrous sur examen publié/tentative ; validations conservées.
+- **Fenêtre d'examen** : `opens_at` / `closes_at`, saisie création/édition, message clair hors fenêtre, affichage étudiant, tentative déjà commencée poursuivie jusqu'à sa durée. Une seule règle (`Exam.window_state`) pour la fenêtre et la clôture manuelle (`closed_at`) ; le code d'accès peut être validé avant l'ouverture.
+- **Migration** : `qcm/migrations/0010_exam_window_results.py` (les examens existants gardent leurs notes visibles).
+- **Fichier de test QCM** : `qcm_data/test_10_questions_redondance.xlsx`, 10 questions + redondance.
+- **Tests** : `qcm/tests_exam_lifecycle.py`.
+
 ## Démarrage rapide (développement)
 
 ```bash

@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Exam, ExamEnrollment, Attempt, ClassroomMembership
 from ..permissions import role, is_classroom_student
-from ..services import close_expired_attempts, visible_exams_for_student
+from ..services import close_expired_attempts, exam_window_message, grade_summary, visible_exams_for_student
 from .common import redirect_back
 
 
@@ -70,8 +70,11 @@ def student_exam(request, exam_id):
     close_expired_attempts(Attempt.objects.filter(student=request.user, exam_id=exam_id))
     exam = get_object_or_404(visible_exams_for_student(request.user).select_related("teacher"), pk=exam_id)
     exam = annotate_exams_for_student(request.user, [exam])[0]
+    attempt = exam.student_attempt
+    grade = (grade_summary(attempt) if exam.results_published and attempt
+             and attempt.status != Attempt.IN_PROGRESS else None)
     return render(request, "qcm/student_exam.html", {
-        "exam": exam, "question_count": exam.questions.count(),
+        "exam": exam, "question_count": exam.questions.count(), "grade": grade,
     })
 
 
@@ -83,11 +86,14 @@ def join_exam_by_code(request):
     code = request.POST.get("access_code", "").strip().upper()
     exam_id = request.POST.get("exam_id", "").strip()
     back = redirect_back(request, "student_dashboard")
-    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False,
-                                closed_at__isnull=True, pk=exam_id).first()
+    exam = (Exam.objects.filter(access_code=code, published=True, is_archived=False, pk=exam_id).first()
             if exam_id.isdigit() else None)
     if not exam:
         messages.error(request, "Code d'examen invalide ou examen non disponible.")
+        return back
+    # Le code peut être validé à l'avance (avant l'ouverture), mais plus une fois l'examen fermé.
+    if exam.window_state() == "AFTER":
+        messages.error(request, exam_window_message(exam))
         return back
     profile = request.user.profile
     individual = ExamEnrollment.objects.filter(exam=exam, student=request.user, source="LIST").first()

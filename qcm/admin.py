@@ -40,8 +40,9 @@ class ClassroomAdmin(admin.ModelAdmin):
 
 @admin.register(Exam)
 class ExamAdmin(admin.ModelAdmin):
-    list_display = ("title", "teacher", "classroom", "target_level", "audience_mode", "published", "closed_at", "is_archived", "duration_minutes", "created_at")
-    list_filter = ("published", "is_archived", "target_level", "audience_mode")
+    list_display = ("title", "teacher", "classroom", "target_level", "audience_mode", "published", "results_published",
+                    "opens_at", "closes_at", "closed_at", "is_archived", "duration_minutes", "created_at")
+    list_filter = ("published", "results_published", "is_archived", "target_level", "audience_mode")
     search_fields = ("title", "teacher__username", "classroom__name")
     inlines = [QuestionInline]
 

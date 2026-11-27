@@ -1,18 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Évaluation clôturée{% endblock %}
+{% block title %}{% if attempt.exam.results_published %}Évaluation clôturée{% else %}Copie remise{% endif %}{% endblock %}
 {% block main_class %}page narrow{% endblock %}
 {% block content %}
 <div class="card center">
+  {% if attempt.exam.results_published %}
   <h1>Évaluation clôturée</h1>
+  {% else %}
+  <h1>Copie remise</h1>
+  {% endif %}
   <p class="muted">{{ attempt.exam.title }} · <strong>{{ attempt.get_status_display }}</strong></p>
 
   {% if attempt.status == "TERMINATED_SECURITY" %}
     <div class="alert error" style="margin:16px 0">La tentative a été clôturée pour violation des règles de surveillance. Les points acquis sur les réponses déjà enregistrées sont conservés.</div>
   {% endif %}
 
+  {% if attempt.exam.results_published %}
   <div class="score-ring" style="--p: {{ percentage|stringformat:'s'|default:'0' }}"><span>{{ percentage }} %</span></div>
   <p><strong>Score : {{ score|floatformat:2 }} / {{ max_score|floatformat:2 }} points</strong></p>
   <p class="muted small">Le pourcentage est calculé sur l'ensemble des questions de l'examen. Les questions sans réponse valent zéro point.</p>
+  {% else %}
+  <p class="muted">Votre copie a bien été enregistrée. Les notes seront publiées par votre enseignant.</p>
+  {% endif %}
   <a class="btn" href="{% url 'student_dashboard' %}">Retour à mon espace</a>
 </div>
 {% endblock %}

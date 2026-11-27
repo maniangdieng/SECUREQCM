@@ -10,6 +10,7 @@
     try { if (localStorage.getItem("sq-drawer") === "rail") document.documentElement.classList.add("drawer-rail"); } catch (e) {}</script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
+<a class="skip-link" href="#main">Aller au contenu</a>
 {% block appbar %}
 <header class="topbar">
   {% if user.is_authenticated %}
@@ -73,11 +74,11 @@
 {% endif %}
 {% endblock %}
 
-<main class="app-main">
+<main class="app-main" id="main">
   {% block classnav %}{% endblock %}
   <div class="{% block main_class %}page{% endblock %}">
     {% if messages %}
-    <div class="messages" role="status">
+    <div class="messages" role="status" aria-live="polite">
       {% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}
     </div>
     {% endif %}

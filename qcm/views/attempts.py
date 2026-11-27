@@ -35,8 +35,8 @@ from django.views.decorators.http import require_POST, require_http_methods
 
 from ..models import Exam, ExamEnrollment, Question, Option, Attempt, Response, SecurityEvent
 from ..permissions import role, can_authorize_resume
-from ..services import (RESUME_EVENT, VIOLATION_LABELS, audit, build_grading, exam_max_score, grade_summary,
-                        locked_attempts, advance, close_attempt, apply_deadlines)
+from ..services import (RESUME_EVENT, VIOLATION_LABELS, audit, build_grading, exam_max_score, exam_window_message,
+                        grade_summary, locked_attempts, advance, close_attempt, apply_deadlines)
 
 SECURITY_EVENTS = set(VIOLATION_LABELS)
 INFO_EVENTS = {"FOCUS_LOSS", "WINDOW_RESIZE"}  # journalisés pour information, jamais comptés
@@ -171,8 +171,10 @@ def start_exam(request, exam_id):
         if existing and existing.status != Attempt.INTERRUPTED:
             return redirect("take_exam", attempt_id=existing.id)
 
-        if exam.closed_at:
-            messages.error(request, "Cet examen a été clôturé par l'enseignant : aucune nouvelle tentative n'est possible.")
+        # Clôture manuelle ou hors fenêtre d'ouverture : vérifié avant les consignes et avant la création.
+        window_error = exam_window_message(exam)
+        if window_error:
+            messages.error(request, window_error)
             return redirect("student_dashboard")
 
         questions = list(exam.questions.prefetch_related("options").all())

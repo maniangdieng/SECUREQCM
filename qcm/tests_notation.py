@@ -64,6 +64,7 @@ class PartialScoringTests(NotationFixture):
         third = Option.objects.create(question=self.multi, text="D", is_correct=True, position=4)
         attempt = self.sit([self.a])  # 1/3 de 2 points
         self.assertNotEqual(third.id, None)
+        self.set_exam(results_published=True)  # depuis #12, la note n'apparaît qu'une fois publiée
         page = self.client.get(f"/attempt/{attempt.id}/")
         self.assertContains(page, "Score : 0,67 / 3,00 points")
 

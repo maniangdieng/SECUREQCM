@@ -3,6 +3,7 @@ import secrets
 import string
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 def _random_code(length):
@@ -111,7 +112,12 @@ class Exam(models.Model):
     shuffle_answers = models.BooleanField(default=True)
     multiple_scoring = models.CharField("Notation des choix multiples", max_length=16,
                                         choices=SCORING_CHOICES, default=PARTIAL)
+    # Deux façons de fermer un examen : clôture manuelle par l'enseignant (closed_at, #25) et
+    # fenêtre programmée (opens_at / closes_at, #9). window_state() décide pour les deux.
     closed_at = models.DateTimeField("Date de clôture", null=True, blank=True)
+    opens_at = models.DateTimeField("Ouverture", null=True, blank=True)
+    closes_at = models.DateTimeField("Fermeture", null=True, blank=True)
+    results_published = models.BooleanField("Notes publiées", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     access_code = models.CharField(max_length=12, unique=True, default=generate_exam_code)
     target_level = models.CharField(max_length=12, choices=LEVEL_CHOICES, blank=True, default="")
@@ -130,6 +136,19 @@ class Exam(models.Model):
         if self.closed_at:
             return "Clôturé"
         return "Publié" if self.published else "Brouillon"
+
+    def window_state(self, now=None):
+        """BEFORE : pas encore ouvert ; AFTER : fermé (programmé ou clôturé) ; OPEN : on peut démarrer."""
+        now = now or timezone.now()
+        if self.closed_at or (self.closes_at and now >= self.closes_at):
+            return "AFTER"
+        if self.opens_at and now < self.opens_at:
+            return "BEFORE"
+        return "OPEN"
+
+    @property
+    def is_open(self):
+        return self.window_state() == "OPEN"
 
     @property
     def state_badge(self):

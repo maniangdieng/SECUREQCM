@@ -3,7 +3,7 @@
   <span class="work-icon {% if a and a.status != 'IN_PROGRESS' %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
   <span class="work-title">{{ e.title }}<span class="work-sub">{% if show_class and e.classroom %}{{ e.classroom.name }} · {% endif %}{{ e.duration_minutes }} min</span></span>
   <span class="work-meta {% if a.status == 'TERMINATED_SECURITY' %}is-danger{% elif a and a.status != 'IN_PROGRESS' %}is-done{% elif a %}is-progress{% endif %}">
-    {% if not a %}Attribué{% elif a.status == "IN_PROGRESS" %}En cours{% elif a.status == "TERMINATED_SECURITY" %}Clôturé{% else %}Remis{% endif %}
+    {% if not a and e.window_state == "AFTER" %}Fermé{% elif not a and e.window_state == "BEFORE" %}Ouvre le {{ e.opens_at|date:"d/m H:i" }}{% elif not a %}Attribué{% elif a.status == "IN_PROGRESS" %}En cours{% elif a.status == "TERMINATED_SECURITY" %}Clôturé{% else %}Remis{% endif %}
   </span>
 </a></li>
 {% endwith %}

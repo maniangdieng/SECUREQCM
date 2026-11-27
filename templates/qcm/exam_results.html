@@ -5,8 +5,13 @@
 {% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="travaux" %}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Résultats</h1><p>{{ exam.title }}</p></div>
+  <div><h1>Résultats</h1><p>{{ exam.title }} · {% if exam.results_published %}<span class="badge ok">Notes publiées</span>{% else %}notes non publiées : les étudiants voient seulement « Copie remise »{% endif %}</p></div>
   <div class="row" style="gap:8px">
+    {% if not exam.results_published %}
+    <form method="post" action="{% url 'publish_results' exam.id %}" data-confirm="Publier les notes ? Les étudiants verront leur score. Cette action ne peut pas être annulée.">
+      {% csrf_token %}<button class="btn" type="submit">Publier les notes</button>
+    </form>
+    {% endif %}
     <a class="btn" href="{% url 'export_exam_results_xlsx' exam.id %}">Exporter en Excel</a>
     <a class="btn ghost" href="{% url 'export_exam_results' exam.id %}">Exporter en CSV</a>
     <a class="btn ghost" href="{% url 'print_exam_results' exam.id %}">Imprimer / PDF</a>

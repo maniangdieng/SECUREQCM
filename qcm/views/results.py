@@ -1,15 +1,18 @@
 import csv
 from datetime import datetime
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import HttpResponse, HttpResponseForbidden
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from ..models import Exam, Attempt
 from ..permissions import can_manage_exam, can_authorize_resume
-from ..services import (PASS_MARK, RESULT_HEADER, close_expired_attempts, grade_summary, graded_rows, grading_of,
-                        question_stats, result_rows, results_summary)
+from ..services import (PASS_MARK, RESULT_HEADER, audit, close_expired_attempts, grade_summary, graded_rows,
+                        grading_of, question_stats, result_rows, results_summary)
 
 
 def csv_safe(value):
@@ -49,6 +52,32 @@ def print_exam_results(request, exam_id):
         "exam": exam, "rows": rows, "summary": results_summary(rows), "pass_mark": PASS_MARK,
         "enrollment_count": exam.enrollments.count(), "printed_at": timezone.now(),
     })
+
+
+@login_required
+@require_POST
+def publish_results(request, exam_id):
+    """Les étudiants voient leur note (#12). Irréversible : refusé tant que des copies sont en cours."""
+    exam = get_object_or_404(Exam, pk=exam_id)
+    if not can_manage_exam(request.user, exam):
+        return HttpResponseForbidden("Accès réservé à l'enseignant responsable.")
+    close_expired_attempts(Attempt.objects.filter(exam=exam))
+    running = Attempt.objects.filter(exam=exam, status=Attempt.IN_PROGRESS).count()
+    if not exam.published:
+        messages.error(request, "Publiez d'abord l'examen avant de publier les notes.")
+        return redirect("teacher_exam", exam_id=exam.id)
+    if exam.results_published:
+        messages.info(request, "Les notes de cet examen sont déjà publiées.")
+    elif running:
+        messages.error(request, f"{running} étudiant(s) composent encore : publiez les notes quand toutes les "
+                                "copies sont remises (la publication ne peut pas être annulée).")
+    else:
+        with transaction.atomic():
+            exam.results_published = True
+            exam.save(update_fields=["results_published"])
+            audit(request.user, "Notes publiées", exam)
+        messages.success(request, "Les notes sont désormais visibles par les étudiants.")
+    return redirect("exam_results", exam_id=exam.id)
 
 
 @login_required

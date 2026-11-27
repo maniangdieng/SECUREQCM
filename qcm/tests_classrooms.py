@@ -233,7 +233,7 @@ class ExamFlowTests(TestCase):
         self.client.post(f"/attempt/{attempt.id}/answer.json", {"option": [good.id], "question_id": good.question_id})
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, Attempt.COMPLETED)
-        self.assertContains(self.client.get(f"/attempt/{attempt.id}/"), "Évaluation clôturée")
+        self.assertContains(self.client.get(f"/attempt/{attempt.id}/"), "Copie remise")
         self.assertEqual(self.client.get("/dashboard/student/").status_code, 200)
         self.client.force_login(teacher)
         self.assertEqual(self.client.get(f"/teacher/exams/{exam.id}/results/").status_code, 200)

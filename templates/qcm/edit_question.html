@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block title %}Modifier la question{% endblock %}
+{% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
+{% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
+{% block classnav %}{% include "qcm/_exam_tabs.html" with exam_tab="instructions" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Modifier la question {{ question.position }}</h1><p>{{ exam.title }} · examen en brouillon</p></div>
+</div>
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <label>Énoncé<textarea name="text" required rows="3">{{ form_text }}</textarea></label>
+    <div class="row">
+      <label class="grow">Type
+        <select name="kind">
+          <option value="SINGLE" {% if form_kind == "SINGLE" %}selected{% endif %}>Réponse unique</option>
+          <option value="MULTIPLE" {% if form_kind == "MULTIPLE" %}selected{% endif %}>Réponses multiples</option>
+        </select>
+      </label>
+      <label style="width:140px">Points<input name="points" type="number" min="0.1" max="100" step="0.01" value="{{ form_points|unlocalize }}" required></label>
+    </div>
+    <fieldset>
+      <legend>Propositions — cochez la ou les bonnes réponses</legend>
+      {% for row in option_rows %}
+      <div class="row" style="align-items:center;margin-bottom:8px">
+        <input type="checkbox" name="correct" value="{{ forloop.counter0 }}" {% if row.correct %}checked{% endif %} aria-label="Proposition {{ forloop.counter }} correcte" style="width:18px;height:18px">
+        <input class="grow" name="option_text" value="{{ row.text }}" placeholder="Proposition {{ forloop.counter }}{% if forloop.counter > 2 %} (facultative){% endif %}">
+      </div>
+      {% endfor %}
+    </fieldset>
+    <div class="actions">
+      <button class="btn" type="submit">Enregistrer la question</button>
+      <a class="btn ghost" href="{% url 'teacher_exam' exam.id %}">Annuler</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
