@@ -100,3 +100,12 @@ Avant un examen réel : [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLI
 
 Un navigateur ordinaire ne peut pas verrouiller le poste. La détection (plein écran, changement d'onglet) est
 indicative et peut produire des faux positifs. Pour un examen à fort enjeu, intégrer Safe Exam Browser (voir perspectives).
+
+## Règles de contribution
+
+- Une branche par issue, puis une PR vers `main` (« Closes #N ») ; `main` est protégée : **PR et approbation d'un autre membre obligatoires**.
+- **Chaque commit est signé de son auteur humain** : configurez `git config user.name` et `git config user.email` avec votre compte GitHub.
+  Aucun outil (assistant de code, générateur…) ne doit apparaître comme auteur, committer ou co-auteur :
+  pas de ligne `Co-Authored-By` ni de mention d'outil dans les commits et les PR. La CI le vérifie (`attribution.yml`)
+  et le réglage partagé `.claude/settings.json` désactive ces mentions pour ceux qui utilisent Claude Code.
+- Jamais de vraies données dans le dépôt (`db.sqlite3`, `.env`, exports).
