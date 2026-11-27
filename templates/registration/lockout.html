@@ -9,7 +9,8 @@
   </div>
   <div class="alert error" role="alert">
     {{ failure_limit }} tentatives de connexion échouées pour l'identifiant « {{ username }} ».
-    La connexion est bloquée temporairement : réessayez dans quelques minutes.
+    La connexion est bloquée pendant {% widthratio cooloff_timedelta.total_seconds 60 1 %} minutes.
+    Inutile de réessayer avant : attendez la fin du délai.
   </div>
   <br>
   <p class="muted">Pendant un examen, signalez-le au surveillant : un administrateur peut lever le blocage immédiatement.</p>

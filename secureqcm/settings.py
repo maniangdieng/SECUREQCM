@@ -104,6 +104,12 @@ AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
 AXES_COOLOFF_TIME = int(os.getenv("AXES_COOLOFF_MINUTES", "15")) / 60  # en heures
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
+# Un essai pendant le blocage ne relance pas les 15 minutes (sinon l'étudiant qui réessaie reste bloqué).
+AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
+# Derrière un reverse proxy (Caddy en HTTPS), lire la vraie IP dans X-Forwarded-For.
+# À activer uniquement quand l'application n'est joignable QUE par le proxy (voir qcm/client_ip.py).
+if os.getenv("AXES_BEHIND_PROXY", "0") == "1":
+    AXES_CLIENT_IP_CALLABLE = "qcm.client_ip.client_ip_behind_proxy"
 AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
 AXES_VERBOSE = False
 LOGIN_REDIRECT_URL = "/"

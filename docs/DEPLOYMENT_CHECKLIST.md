@@ -5,7 +5,7 @@
 - [ ] Configurer `DJANGO_ALLOWED_HOSTS` avec le domaine réel.
 - [ ] Déployer derrière HTTPS (obligatoire).
 - [ ] Configurer les cookies sécurisés et les paramètres proxy HTTPS dans Django.
-- [ ] Vérifier `AXES_FAILURE_LIMIT` / `AXES_COOLOFF_MINUTES` (blocage après échecs de connexion). Derrière un reverse proxy (nginx…), configurer django-axes pour lire la vraie IP du client (`X-Forwarded-For`), sinon tous les étudiants partagent l'IP du proxy.
+- [ ] Vérifier `AXES_FAILURE_LIMIT` / `AXES_COOLOFF_MINUTES` (blocage après échecs de connexion). Derrière un reverse proxy (Caddy, nginx…), mettre `AXES_BEHIND_PROXY=1` pour que django-axes lise la vraie IP (`X-Forwarded-For`), sinon tous les étudiants partagent l'IP du proxy. **Seulement** si le port de l'application n'est pas exposé directement.
 - [ ] Mettre en place sauvegardes PostgreSQL et restauration testée.
 - [ ] Créer les comptes et affecter explicitement les rôles dans `/admin/`.
 - [ ] Tester les parcours enseignant et étudiant.
