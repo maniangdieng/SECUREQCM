@@ -5,6 +5,18 @@ un super-administrateur, des enseignants qui créent leurs classes, des étudian
 
 > Description complète, architecture, règles métier et **ce qui reste à faire** : [`docs/PROJET_ET_PERSPECTIVES.md`](docs/PROJET_ET_PERSPECTIVES.md)
 
+## Ajouts — Ablaye Faye
+
+- **Publication des notes** : champ `Exam.results_published`, page de fin « Copie remise » sans note tant que non publié, bouton « Publier les notes » côté enseignant.
+- **Duplication d'examen** : action « Dupliquer », copie examen + questions + propositions en brouillon, même classe ou autre classe, nouveau code d'accès, aucune tentative ni affectation copiée.
+- **Édition des questions** : énoncé, type, propositions, bonnes réponses, points ; réordonnancement monter/descendre ; verrous sur examen publié/tentative ; validations conservées.
+- **Fenêtre d'examen** : `opens_at` / `closes_at`, saisie création/édition, message clair hors fenêtre, affichage étudiant, tentative déjà commencée poursuivie jusqu'à sa durée.
+- **Migration** : `qcm/migrations/0006_exam_closes_at_exam_opens_at_exam_results_published.py`.
+- **Fichier de test QCM** : `qcm_data/test_10_questions_redondance.xlsx`, 10 questions + redondance.
+- **Interface professionnelle** : charte verte sobre, navbar/footer, dashboards admin/enseignant/étudiant, responsive, accessibilité, `static/css/app.css`, `static/js/app.js`, `templates/base.html`.
+- **Bouton local « Règles & avertissements »** : règles de violation et avertissements, sans discussion ni envoi de données.
+- **Tests** : `qcm/tests_exam_lifecycle.py`, suite `python manage.py test qcm` à 65 tests verts.
+
 ## Démarrage rapide (développement)
 
 ```bash

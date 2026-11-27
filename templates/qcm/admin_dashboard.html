@@ -1,13 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Administration{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Administration</h1><p>{% if is_superadmin %}Super-administrateur{% else %}Administrateur{% endif %} · vue d'ensemble de la plateforme</p></div>
+<section class="dashboard-hero">
+  <div>
+    <span class="eyebrow">{% if is_superadmin %}Super-administrateur{% else %}Administrateur{% endif %}</span>
+    <h1>Administration</h1>
+    <p>Vue d'ensemble de la plateforme : comptes, classes, examens, copies et cycle de vie.</p>
+  </div>
   <div class="actions">
     <a class="btn ghost" href="{% url 'admin_users' %}">Gérer les comptes</a>
     {% if user.is_staff %}<a class="btn ghost" href="/admin/">Administration technique</a>{% endif %}
   </div>
-</div>
+</section>
 
 <div class="grid grid-stats">
   <div class="stat"><div class="value">{{ stats.users }}</div><div class="label">Comptes</div></div>

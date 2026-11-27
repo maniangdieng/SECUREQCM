@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Mon espace{% endblock %}
 {% block content %}
-<div class="page-head">
+<section class="dashboard-hero">
   <div>
+    <span class="eyebrow">Espace étudiant</span>
     <h1>Bonjour {{ user.first_name|default:user.username }}</h1>
     <p>{% if user.profile.study_level %}{{ user.profile.get_study_level_display }} · {% endif %}Matricule {{ user.profile.student_number|default:"—" }}</p>
   </div>
-  <button class="btn" type="button" data-dialog="dlg-join">+ Rejoindre une classe</button>
-</div>
+  <div class="actions"><button class="btn" type="button" data-dialog="dlg-join">+ Rejoindre une classe</button></div>
+</section>
 
 <section>
   <h2>Examens à faire</h2>

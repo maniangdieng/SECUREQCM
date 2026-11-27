@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Secure QCM{% endblock %} · Secure QCM</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f6b5c'/><text x='16' y='21' font-size='13' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'>QCM</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f4e79'/><text x='16' y='21' font-size='13' font-family='Arial' font-weight='700' fill='white'>QCM</text></svg>">
 </head>
 <body class="{% block body_class %}{% endblock %}">
+<a class="skip-link" href="#main">Aller au contenu</a>
 {% block appbar %}
 <header class="appbar">
   <div class="appbar-inner">
@@ -16,14 +17,14 @@
     {% with path=request.path %}
     <nav class="appnav" aria-label="Navigation principale">
       {% if app_role == "ADMIN" %}
-        <a href="{% url 'admin_dashboard' %}" class="{% if path == '/dashboard/admin/' %}active{% endif %}">Administration</a>
-        <a href="{% url 'admin_users' %}" class="{% if '/dashboard/admin/users' in path %}active{% endif %}">Comptes</a>
-        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Classes</a>
+        <a href="{% url 'admin_dashboard' %}" class="{% if path == '/dashboard/admin/' %}active{% endif %}"{% if path == '/dashboard/admin/' %} aria-current="page"{% endif %}>Administration</a>
+        <a href="{% url 'admin_users' %}" class="{% if '/dashboard/admin/users' in path %}active{% endif %}"{% if '/dashboard/admin/users' in path %} aria-current="page"{% endif %}>Comptes</a>
+        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}"{% if path == '/dashboard/teacher/' or '/classes/' in path %} aria-current="page"{% endif %}>Classes</a>
       {% elif app_role == "TEACHER" %}
-        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
-        <a href="{% url 'import_qcm' %}" class="{% if '/import-qcm' in path %}active{% endif %}">Importer un QCM</a>
+        <a href="{% url 'teacher_dashboard' %}" class="{% if path == '/dashboard/teacher/' or '/classes/' in path %}active{% endif %}"{% if path == '/dashboard/teacher/' or '/classes/' in path %} aria-current="page"{% endif %}>Mes classes</a>
+        <a href="{% url 'import_qcm' %}" class="{% if '/import-qcm' in path %}active{% endif %}"{% if '/import-qcm' in path %} aria-current="page"{% endif %}>Importer un QCM</a>
       {% else %}
-        <a href="{% url 'student_dashboard' %}" class="{% if path == '/dashboard/student/' or '/classes/' in path %}active{% endif %}">Mes classes</a>
+        <a href="{% url 'student_dashboard' %}" class="{% if path == '/dashboard/student/' or '/classes/' in path %}active{% endif %}"{% if path == '/dashboard/student/' or '/classes/' in path %} aria-current="page"{% endif %}>Mes classes</a>
       {% endif %}
     </nav>
     {% endwith %}
@@ -36,14 +37,55 @@
   </div>
 </header>
 {% endblock %}
-<main class="{% block main_class %}page{% endblock %}">
+<main id="main" class="{% block main_class %}page{% endblock %}">
   {% if messages %}
-  <div class="messages" role="status">
+  <div class="messages" role="status" aria-live="polite">
     {% for message in messages %}<div class="alert {{ message.tags }}">{{ message }}</div>{% endfor %}
   </div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+<footer class="app-footer">
+  <div class="app-footer-inner">
+    <div>
+      <h2>Secure QCM</h2>
+      <p>Plateforme d'examens sécurisée : classes, correction, notes et fenêtres d'ouverture.</p>
+    </div>
+    <nav aria-label="Pied de page">
+      <a href="{% url 'home' %}">Accueil</a>
+      {% if app_role == "TEACHER" or app_role == "ADMIN" %}
+        <a href="{% url 'teacher_dashboard' %}">Classes</a>
+        <a href="{% url 'import_qcm' %}">Importer un QCM</a>
+      {% elif user.is_authenticated %}
+        <a href="{% url 'student_dashboard' %}">Mon espace</a>
+      {% else %}
+        <a href="{% url 'login' %}">Connexion</a>
+      {% endif %}
+    </nav>
+  </div>
+</footer>
+<button class="assist-fab" type="button" data-dialog="dlg-rules" aria-label="Ouvrir les règles et avertissements">
+  <span class="assist-icon" aria-hidden="true">?</span>
+  <span class="assist-label">Règles &amp; avertissements</span>
+</button>
+<dialog id="dlg-rules" class="rules-dialog" aria-labelledby="rules-title">
+  <button class="btn ghost sm dialog-close" type="button" data-close aria-label="Fermer">Fermer</button>
+  <div class="dialog-body">
+    <h2 id="rules-title">Règles &amp; avertissements</h2>
+    <p class="muted small">Assistant local : aucune discussion, aucune donnée envoyée.</p>
+    <ol class="rules-list">
+      <li>L'examen se déroule en plein écran.</li>
+      <li>Changer d'onglet ou quitter le plein écran est une violation.</li>
+      <li>1<sup>re</sup> violation : avertissement. 2<sup>e</sup> violation : clôture définitive de l'examen.</li>
+      <li>Ne pas actualiser, ouvrir un autre onglet, fermer la fenêtre ni utiliser un autre appareil.</li>
+      <li>Pas de retour en arrière. À la fin du temps d'une question, la réponse est enregistrée automatiquement.</li>
+      <li>Le temps total de l'examen reste la limite absolue.</li>
+      <li>Question à réponse unique : une seule bonne réponse. Question à réponses multiples : sélectionner toutes les bonnes réponses.</li>
+      <li>Vérifier le code d'accès à l'examen et rester dans la fenêtre d'ouverture indiquée.</li>
+    </ol>
+  </div>
+  <div class="dialog-foot"><button class="btn" type="button" data-close>J'ai compris</button></div>
+</dialog>
 <script src="{% static 'js/app.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>

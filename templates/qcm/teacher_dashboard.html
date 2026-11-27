@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Mes classes{% endblock %}
 {% block content %}
-<div class="page-head">
+<section class="dashboard-hero">
   <div>
+    <span class="eyebrow">Espace enseignant</span>
     <h1>Mes classes</h1>
     <p>Créez une classe, partagez son code avec vos étudiants, puis publiez vos examens dans la classe.</p>
   </div>
@@ -10,7 +11,7 @@
     <a class="btn ghost" href="{% url 'import_qcm' %}">Importer un QCM</a>
     <button class="btn" type="button" data-dialog="dlg-create-class">+ Créer une classe</button>
   </div>
-</div>
+</section>
 
 {% if active_classrooms %}
 <div class="grid grid-cards">
