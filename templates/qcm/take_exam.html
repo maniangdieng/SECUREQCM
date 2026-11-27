@@ -101,6 +101,7 @@
   let saving = false;       // une sauvegarde automatique est en cours
   let dirty = false;        // la sélection a changé depuis la dernière sauvegarde
   let hidden = false;
+  let lastViolation = -Infinity;  // instant du dernier signalement de violation envoyé
 
   // ---------------------------------------------------------------- Affichage
   function render(s) {
@@ -227,6 +228,7 @@
   async function reportViolation(type) {
     if (!started || finished || reporting) return;
     reporting = true;
+    lastViolation = performance.now();
     const data = new FormData(securityForm);
     data.set('event', type);
     try {
@@ -285,15 +287,19 @@
     fetch(securityForm.action, {method: 'POST', body: data, credentials: 'same-origin', keepalive: true}).catch(() => {});
   }
   // Alt+Tab ne masque pas la page : seule une perte de focus le signale. Brève, elle est journalisée ;
-  // prolongée, c'est une violation. Le délai doit rester sous l'anti-doublon du serveur (3 s),
-  // sinon un même geste (Échap, Ctrl+T) compterait deux fois.
+  // prolongée, c'est une violation, sauf si le même geste a déjà été signalé (onglet caché, ou violation
+  // envoyée depuis moins que l'anti-doublon du serveur) : sur un réseau lent, ce second envoi pourrait
+  // arriver après l'anti-doublon et compter une deuxième fois.
   // ponytail: des allers-retours de moins de 2 s ne comptent jamais ; cumuler les absences si cela se voit au journal.
-  const FOCUS_AWAY_MS = 2000;
+  const FOCUS_AWAY_MS = 2000, DEBOUNCE_MS = 3000;  // DEBOUNCE_MS : VIOLATION_DEBOUNCE_SECONDS côté serveur
   let awayTimer;
   window.addEventListener('blur', () => {
     logInfo('FOCUS_LOSS');
     clearTimeout(awayTimer);
-    awayTimer = setTimeout(() => { if (!document.hasFocus()) reportViolation('FOCUS_AWAY'); }, FOCUS_AWAY_MS);
+    awayTimer = setTimeout(() => {
+      if (document.hasFocus() || document.hidden || performance.now() - lastViolation < DEBOUNCE_MS) return;
+      reportViolation('FOCUS_AWAY');
+    }, FOCUS_AWAY_MS);
   });
   window.addEventListener('focus', () => clearTimeout(awayTimer));
   const windowSize = () => window.innerWidth + 'x' + window.innerHeight;
