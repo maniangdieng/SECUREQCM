@@ -13,11 +13,22 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import F, ProtectedError, Value
+from django.db.models.functions import Concat
 
 from qcm.models import Attempt, Classroom, ClassroomMembership, Exam, Option, Profile, Question
 from qcm.services import enroll_audience
 
 PREFIX = "demo_"
+EMAIL_DOMAIN = "@demo.invalid"
+
+
+def demo_users():
+    """Comptes créés par seed_demo : identifiant « demo_… » ET e-mail « <identifiant>@demo.invalid ».
+
+    Le préfixe seul ne suffit pas : n'importe qui peut s'inscrire avec un identifiant « demo_… ».
+    """
+    return User.objects.filter(username__startswith=PREFIX).filter(email=Concat(F("username"), Value(EMAIL_DOMAIN)))
 DEFAULT_PASSWORD = "Demo-SecureQCM-2026"
 
 FIRST_NAMES = ["Awa", "Moussa", "Fatou", "Ibrahima", "Aminata", "Ousmane", "Mariama", "Cheikh", "Khady", "Abdou",
@@ -81,26 +92,49 @@ class Command(BaseCommand):
         with transaction.atomic():
             if opts["reset"]:
                 self._reset()
-            elif User.objects.filter(username__startswith=PREFIX).exists():
+            elif demo_users().exists():
                 raise CommandError("Des données de démo existent déjà. Relancez avec --reset pour les recréer.")
+            self._check_free_usernames(opts["students"])
             summary = self._create(opts["students"], opts["password"])
         self._print(summary, opts["password"])
 
     # ------------------------------------------------------------------ #
+    def _check_free_usernames(self, n_students):
+        wanted = [f"{PREFIX}admin", f"{PREFIX}prof1", f"{PREFIX}prof2"]
+        wanted += [f"{PREFIX}etu{i:03d}" for i in range(1, n_students + 1)]
+        taken = sorted(User.objects.filter(username__in=wanted).exclude(pk__in=demo_users()).values_list(
+            "username", flat=True))
+        if taken:
+            raise CommandError(
+                "Ces identifiants appartiennent à de vrais comptes (pas créés par seed_demo) : "
+                f"{', '.join(taken[:10])}{'…' if len(taken) > 10 else ''}. Renommez-les avant de lancer la commande.")
+
     def _reset(self):
-        users = User.objects.filter(username__startswith=PREFIX)
+        users = demo_users()
+        classrooms = Classroom.objects.filter(owner__in=users)
+        foreign = Exam.objects.filter(classroom__in=classrooms).exclude(teacher__in=users)
+        if foreign.exists():
+            titles = ", ".join(f"« {e.title} » ({e.teacher.username})" for e in foreign.select_related("teacher")[:5])
+            raise CommandError(
+                "Impossible de supprimer les classes de démo : elles contiennent des examens créés par de vrais "
+                f"enseignants : {titles}. Déplacez ou supprimez ces examens d'abord. Rien n'a été supprimé.")
         exams = Exam.objects.filter(teacher__in=users)
-        Attempt.objects.filter(exam__in=exams).delete()  # Attempt.exam est en PROTECT
-        Attempt.objects.filter(student__in=users).delete()
-        exams.delete()
-        Classroom.objects.filter(owner__in=users).delete()
-        count = users.count()
-        users.delete()
+        try:
+            Attempt.objects.filter(exam__in=exams).delete()  # Attempt.exam est en PROTECT
+            Attempt.objects.filter(student__in=users).delete()
+            exams.delete()
+            classrooms.delete()
+            count = users.count()
+            users.delete()
+        except ProtectedError as exc:
+            blocking = ", ".join(sorted({f"{o._meta.verbose_name} #{o.pk}" for o in list(exc.protected_objects)[:5]}))
+            raise CommandError(f"Suppression impossible, des données protégées en dépendent : {blocking}. "
+                               "Rien n'a été supprimé.") from exc
         self.stdout.write(f"Données de démo supprimées ({count} comptes).")
 
     def _user(self, username, first, last, hashed, role="STUDENT", level="", number="", staff=False):
         user = User(username=username, first_name=first, last_name=last, password=hashed,
-                    email=f"{username}@demo.invalid", is_staff=staff)
+                    email=f"{username}{EMAIL_DOMAIN}", is_staff=staff)
         user.save()  # le signal post_save crée le Profile
         Profile.objects.filter(user=user).update(role=role, study_level=level, student_number=number)
         return user
@@ -158,6 +192,9 @@ class Command(BaseCommand):
         w = self.stdout.write
         w(self.style.SUCCESS("Données de démonstration créées."))
         w(f"  Mot de passe commun : {password}")
+        w(self.style.WARNING("  Attention : demo_admin est administrateur avec un mot de passe connu. "
+                             "Ne jamais laisser ces comptes sur le serveur d'un vrai examen (seed_demo --reset puis "
+                             "suppression, ou base séparée)."))
         w(f"  Administrateur      : {s['admin'].username}")
         w(f"  Enseignants         : {', '.join(t.username for t in s['teachers'])}")
         w(f"  Étudiants           : {s['students'][0].username} … {s['students'][-1].username} ({len(s['students'])})")
