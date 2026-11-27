@@ -8,7 +8,7 @@
     {% for e in exams %}
     <li><a class="work-row tall" href="{% url 'exam_results' e.id %}">
       <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
-      <span class="work-title">{{ e.title }}<span class="work-sub">{% if e.classroom %}{{ e.classroom.name }}{% else %}Hors classe{% endif %} · publié le {{ e.created_at|date:"j M Y" }}</span></span>
+      <span class="work-title">{{ e.title }}<span class="work-sub">{% if e.classroom %}{{ e.classroom.name }}{% else %}Hors classe{% endif %}</span></span>
       <span class="turned-in compact">
         <span><strong>{{ e.turned_in_count }}</strong>Remis</span>
         <span><strong>{{ e.assigned_count }}</strong>Attribués</span>

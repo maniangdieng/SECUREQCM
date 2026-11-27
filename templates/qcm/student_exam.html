@@ -15,15 +15,8 @@
       </div>
     </div>
     {% if exam.description %}<div class="assignment-body">{{ exam.description|linebreaksbr }}</div>{% endif %}
-    <div class="assignment-body">
-      <h2 class="h-small">Règles de l'examen</h2>
-      <ul class="rules-list">
-        <li>L'examen se passe en <strong>plein écran</strong>, une question à la fois.</li>
-        <li>Chaque question a son propre temps (durée totale ÷ nombre de questions). Sans réponse à temps, la question est enregistrée vide.</li>
-        <li>Pas de retour en arrière sur une question validée.</li>
-        <li>Changer d'onglet ou quitter le plein écran : un avertissement la première fois, <strong>clôture de l'examen</strong> la deuxième.</li>
-      </ul>
-    </div>
+    <p class="assignment-body small muted">Les règles de l'examen et la règle de notation vous sont présentées
+      juste avant le démarrage : vous devrez les confirmer pour commencer.</p>
   </article>
 
   <aside class="assignment-side">
@@ -36,15 +29,18 @@
       </div>
       {% if a and a.status == "TERMINATED_SECURITY" %}
         <p class="small">Votre tentative a été clôturée pour non-respect des règles. Seul votre enseignant peut autoriser une reprise.</p>
-        <a class="btn ghost block" href="{% url 'take_exam' a.id %}">Voir le résultat</a>
       {% elif a and a.status != "IN_PROGRESS" %}
         <p class="small">Examen terminé le {{ a.ended_at|date:"j M Y à H:i" }}.</p>
         <a class="btn ghost block" href="{% url 'take_exam' a.id %}">Voir le résultat</a>
       {% elif en and en.code_verified %}
-        <form method="post" action="{% url 'start_exam' exam.id %}">{% csrf_token %}
-          <button class="btn block" type="submit">{% if a %}Reprendre l'examen{% else %}Commencer l'examen{% endif %}</button>
-        </form>
-        <p class="help center">Le plein écran vous sera demandé.</p>
+        {% if a %}
+          <a class="btn block" href="{% url 'start_exam' exam.id %}">Reprendre l'examen</a>
+        {% elif exam.closed_at %}
+          <p class="small mb-0">Cet examen a été clôturé par l'enseignant : il n'est plus possible de le commencer.</p>
+        {% else %}
+          <a class="btn block" href="{% url 'start_exam' exam.id %}">Commencer l'examen</a>
+          <p class="help center">Les consignes s'affichent d'abord ; le plein écran vous sera ensuite demandé.</p>
+        {% endif %}
       {% else %}
         <form method="post" action="{% url 'join_exam_by_code' %}">
           {% csrf_token %}

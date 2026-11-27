@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Mon profil{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block content %}
+<div class="card wide">
+  <h1>Mon profil</h1>
+  <p class="mb-0"><strong>{{ user.get_full_name|default:user.username }}</strong></p>
+  <p class="muted">Identifiant : {{ user.username }}{% if user.profile.student_number %} · Matricule : {{ user.profile.student_number }}{% endif %}</p>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <label>{{ field.label }}{{ field }}</label>
+      {% for error in field.errors %}<div class="alert error" role="alert">{{ error }}</div>{% endfor %}
+    {% endfor %}
+    <button class="btn block" type="submit">Enregistrer l'e-mail</button>
+  </form>
+  <hr>
+  <a class="btn ghost block" href="{% url 'password_change' %}">Changer mon mot de passe</a>
+</div>
+{% endblock %}

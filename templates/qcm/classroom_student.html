@@ -39,8 +39,7 @@
       {% for e in stream %}
       <a class="post" href="{% url 'student_exam' e.id %}">
         <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
-        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong>
-          <span class="post-date">{{ e.created_at|date:"j M" }}</span></span>
+        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong></span>
       </a>
       {% empty %}
       <div class="post post-empty">

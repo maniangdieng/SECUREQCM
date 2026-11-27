@@ -20,11 +20,11 @@
   {% if exams %}
   <ul class="stream-list">
     {% for e in exams %}
-    <li><a class="work-row" href="{% url 'teacher_exam' e.id %}">
-      <span class="work-icon {% if not e.published %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
+    <li class="work-line"><a class="work-row" href="{% url 'teacher_exam' e.id %}">
+      <span class="work-icon {% if not e.published or e.is_archived or e.closed_at %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
       <span class="work-title">{{ e.title }}<span class="work-sub">{{ e.get_audience_mode_display }}{% if e.target_level %} · {{ e.get_target_level_display }}{% endif %} · {{ e.question_count }} question{{ e.question_count|pluralize }}</span></span>
-      <span class="work-meta">{% if e.published %}Publié{% else %}Brouillon{% endif %}</span>
-    </a></li>
+      <span class="work-meta">{{ e.state_label }}</span>
+    </a>{% if e.published or e.attempt_count %}<a class="btn text sm" href="{% url 'exam_results' e.id %}">Résultats</a>{% endif %}</li>
     {% endfor %}
   </ul>
   {% else %}<p class="muted">Aucun examen hors classe. Il est recommandé de créer les examens depuis une classe.</p>{% endif %}
@@ -46,6 +46,7 @@
         </label>
         <label style="width:140px">Durée (min)<input type="number" name="duration" value="60" min="1" max="180" required></label>
       </div>
+      <div class="row settings-row">{% include "qcm/_exam_settings_fields.html" with exam=None %}</div>
       <button class="btn" type="submit">Créer l'examen</button>
     </form>
   </details>

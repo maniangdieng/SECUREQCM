@@ -6,7 +6,7 @@ Règles conservées de la version d'origine pour le cycle de vie d'un examen :
 - examen AVEC tentatives → archivage obligatoire (historique conservé) ;
 - suppression définitive d'un examen archivé → export CSV confirmé + saisie « SUPPRIMER ».
 
-Ajouts : gestion des rôles des comptes et vue d'ensemble des classes.
+Ajouts : création et gestion des rôles des comptes, vue d'ensemble des classes, journal des opérations.
 Seul le super-administrateur (is_superuser) peut nommer ou révoquer un administrateur.
 """
 from django.contrib import messages
@@ -17,11 +17,14 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
-from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.urls import reverse
+from django.utils.http import urlencode
+from django.views.decorators.http import require_POST, require_safe
 
-from ..models import Profile, Exam, Attempt, Classroom
+from ..forms import AccountForm
+from ..models import Profile, Exam, Attempt, AuditLog, Classroom
 from ..permissions import role, is_admin, is_superadmin
+from ..services import audit, enroll_student_in_level_exams
 from .common import redirect_back
 
 
@@ -67,7 +70,39 @@ def admin_users(request):
 
 
 @login_required
+@transaction.atomic
+def admin_create_user(request):
+    if not is_admin(request.user):
+        return HttpResponseForbidden("Accès réservé à l'administration.")
+    form = AccountForm(request.POST or None, creator=request.user)
+    if form.is_valid():
+        user = form.save()
+        if user.profile.role == "STUDENT":
+            enroll_student_in_level_exams(user)
+        audit(request.user, "Compte créé", user, user.profile.get_role_display())
+        messages.success(request, f"Compte {user.username} créé. Transmettez le mot de passe à la personne concernée.")
+        return redirect(f"{reverse('admin_users')}?{urlencode({'q': user.username})}")
+    return render(request, "qcm/admin_user_form.html", {"form": form})
+
+
+@login_required
+@require_safe
+def admin_journal(request):
+    if not is_admin(request.user):
+        return HttpResponseForbidden("Accès réservé à l'administration.")
+    query = request.GET.get("q", "").strip()
+    entries = AuditLog.objects.all()
+    if query:
+        entries = entries.filter(Q(actor_name__icontains=query) | Q(action__icontains=query)
+                                 | Q(target__icontains=query) | Q(details__icontains=query))
+    return render(request, "qcm/admin_journal.html", {
+        "page": Paginator(entries, 50).get_page(request.GET.get("page")), "query": query,
+    })
+
+
+@login_required
 @require_POST
+@transaction.atomic
 def admin_set_role(request, user_id):
     if not is_admin(request.user):
         return HttpResponseForbidden()
@@ -83,17 +118,22 @@ def admin_set_role(request, user_id):
         messages.error(request, "Seul le super-administrateur peut nommer ou révoquer un administrateur.")
     else:
         profile = target.profile
+        old_label = profile.get_role_display()
+        changed = profile.role != new_role
         profile.role = new_role
         profile.save(update_fields=["role"])
         if new_role != "ADMIN" and target.is_staff:
             target.is_staff = False
             target.save(update_fields=["is_staff"])
+        if changed:
+            audit(request.user, "Rôle modifié", target, f"{old_label} → {profile.get_role_display()}")
         messages.success(request, f"{target.username} est maintenant : {profile.get_role_display()}.")
     return redirect_back(request, "admin_users")
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def admin_toggle_active(request, user_id):
     if not is_admin(request.user):
         return HttpResponseForbidden()
@@ -105,28 +145,9 @@ def admin_toggle_active(request, user_id):
     else:
         target.is_active = not target.is_active
         target.save(update_fields=["is_active"])
+        audit(request.user, "Compte réactivé" if target.is_active else "Compte désactivé", target)
         messages.success(request, f"Compte {target.username} {'réactivé' if target.is_active else 'désactivé'}.")
     return redirect_back(request, "admin_users")
-
-
-@login_required
-@require_POST
-def admin_archive_exam(request, exam_id):
-    if not is_admin(request.user):
-        return HttpResponseForbidden("Action réservée à l'administration.")
-    exam = get_object_or_404(Exam, pk=exam_id)
-    if not Attempt.objects.filter(exam=exam).exists():
-        messages.error(request, "Cet examen ne possède aucune tentative : utilisez la suppression normale.")
-        return redirect("admin_dashboard")
-    if not exam.is_archived:
-        exam.is_archived = True
-        exam.archived_at = timezone.now()
-        exam.archived_by = request.user
-        exam.save(update_fields=["is_archived", "archived_at", "archived_by"])
-        messages.success(request, f"L’examen « {exam.title} » a été archivé. Son historique est conservé.")
-    else:
-        messages.info(request, "Cet examen est déjà archivé.")
-    return redirect("admin_dashboard")
 
 
 @login_required
@@ -146,7 +167,9 @@ def admin_delete_exam(request, exam_id):
     title = exam.title
     with transaction.atomic():
         # Attempt.exam est en PROTECT : suppression explicite de l’historique uniquement après confirmation admin.
-        Attempt.objects.filter(exam=exam).delete()
+        copies = Attempt.objects.filter(exam=exam)
+        audit(request.user, "Examen supprimé définitivement", exam, f"{copies.count()} copie(s) effacée(s)")
+        copies.delete()
         exam.delete()
     messages.success(request, f"L’examen « {title} » et toutes ses données associées ont été définitivement supprimés.")
     return redirect("admin_dashboard")
@@ -162,6 +185,8 @@ def admin_normal_delete_exam(request, exam_id):
         messages.error(request, "Cet examen possède des tentatives : archivez-le au lieu de le supprimer normalement.")
         return redirect("admin_dashboard")
     title = exam.title
-    exam.delete()
+    with transaction.atomic():
+        audit(request.user, "Examen supprimé", exam)
+        exam.delete()
     messages.success(request, f"L’examen « {title} » a été supprimé.")
     return redirect("admin_dashboard")

@@ -31,6 +31,7 @@
         <strong>{{ user.get_full_name|default:user.username }}</strong>
         <span class="muted small">{{ user.username }}</span>
         <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Administrateur{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
+        <a class="btn ghost" href="{% url 'profile' %}">{% include "qcm/_icon.html" with name="people" %} Mon profil</a>
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost" type="submit">{% include "qcm/_icon.html" with name="logout" %} Se déconnecter</button></form>
       </div>
     </details>
@@ -45,6 +46,7 @@
   {% if app_role == "ADMIN" %}
     <a href="{% url 'admin_dashboard' %}" class="nav-item {% if path == '/dashboard/admin/' %}active{% endif %}" title="Administration">{% include "qcm/_icon.html" with name="admin" %}<span>Administration</span></a>
     <a href="{% url 'admin_users' %}" class="nav-item {% if '/dashboard/admin/users' in path %}active{% endif %}" title="Comptes">{% include "qcm/_icon.html" with name="people" %}<span>Comptes</span></a>
+    <a href="{% url 'admin_journal' %}" class="nav-item {% if '/dashboard/admin/journal' in path %}active{% endif %}" title="Journal des opérations">{% include "qcm/_icon.html" with name="review" %}<span>Journal</span></a>
   {% endif %}
   <hr>
   {% if app_role == "STUDENT" %}

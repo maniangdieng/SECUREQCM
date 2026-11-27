@@ -20,6 +20,11 @@
     } catch (e) { /* presse-papiers indisponible (HTTP non sécurisé) */ }
   });
 
+  // Imprimer la page : <button data-print>
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-print]")) window.print();
+  });
+
   // Ouvrir une modale : <button data-dialog="id-du-dialog">
   document.addEventListener("click", (event) => {
     const opener = event.target.closest("[data-dialog]");

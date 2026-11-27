@@ -114,7 +114,7 @@
       <summary class="btn pill">{% include "qcm/_icon.html" with name="plus" %} Créer</summary>
       <div class="menu">
         <button type="button" data-dialog="dlg-create-exam">{% include "qcm/_icon.html" with name="assignment" %} Examen QCM</button>
-        <a href="{% url 'import_qcm' %}?classe={{ classroom.id }}">{% include "qcm/_icon.html" with name="upload" %} Importer un sujet (PDF, Word, Excel)</a>
+        <a href="{% url 'import_qcm' %}?classe={{ classroom.id }}">{% include "qcm/_icon.html" with name="upload" %} Importer un sujet (PDF, Word, Excel, JSON)</a>
       </div>
     </details>
 
@@ -124,9 +124,9 @@
       <li>
         <details class="work-item">
           <summary class="work-row">
-            <span class="work-icon {% if not e.published or e.is_archived %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
+            <span class="work-icon {% if not e.published or e.is_archived or e.closed_at %}muted-icon{% endif %}">{% include "qcm/_icon.html" with name="assignment" %}</span>
             <span class="work-title">{{ e.title }}</span>
-            <span class="work-meta">{% if e.is_archived %}Archivé{% elif e.published %}Publié le {{ e.created_at|date:"j M" }}{% else %}Brouillon{% endif %}</span>
+            <span class="work-meta">{{ e.state_label }}</span>
           </summary>
           <div class="work-detail">
             <div class="work-detail-main">
@@ -180,8 +180,7 @@
       {% for e in stream %}
       <a class="post" href="{% url 'teacher_exam' e.id %}">
         <span class="work-icon">{% include "qcm/_icon.html" with name="assignment" %}</span>
-        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong>
-          <span class="post-date">{{ e.created_at|date:"j M" }}</span></span>
+        <span class="post-text">{{ e.teacher.get_full_name|default:e.teacher.username }} a publié un nouvel examen : <strong>{{ e.title }}</strong></span>
       </a>
       {% empty %}
       <div class="post post-empty">
@@ -210,6 +209,7 @@
         </label>
         <label style="width:150px">Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180" required></label>
       </div>
+      <div class="row settings-row">{% include "qcm/_exam_settings_fields.html" with exam=None %}</div>
       <p class="help mb-0">L'examen est créé en brouillon : ajoutez les questions puis publiez-le.</p>
     </div>
     <div class="dialog-foot">

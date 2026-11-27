@@ -18,6 +18,7 @@
       <h3 style="flex:1">{{ forloop.counter }}. {{ q.text }}</h3>
       <label class="check" style="color:var(--danger);white-space:nowrap"><input type="checkbox" name="remove_question" value="{{ forloop.counter0 }}"> Retirer</label>
     </div>
+    {% if q.points %}<p class="small muted">Barème : {{ q.points }} pt{% if q.type == "MULTIPLE" %} · Réponses multiples{% elif q.type == "SINGLE" %} · Réponse unique{% endif %}</p>{% endif %}
     {% for o in q.options %}
     <label class="option"><input type="checkbox" name="correct_{{ forloop.parentloop.counter0 }}" value="{{ o.letter }}" {% if o.letter in q.correct %}checked{% endif %}> <strong>{{ o.letter }}.</strong> {{ o.text }}</label>
     {% endfor %}

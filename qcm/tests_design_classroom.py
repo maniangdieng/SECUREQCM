@@ -1,10 +1,12 @@
 """Tests de la réorganisation façon Google Classroom (menu, onglets, À faire, Notes, page d'examen étudiant)."""
 from django.contrib.auth.models import User
 from django.test import TestCase
+from datetime import timedelta
+
 from django.utils import timezone
 
 from .models import Attempt, Classroom, ClassroomMembership, Exam, ExamEnrollment, Option, Question, Response
-from .services import final_grades, grade_summary
+from .services import build_grading, final_grades, grade_summary
 
 
 def make_user(username, role_value="STUDENT", first_name=""):
@@ -121,3 +123,61 @@ class ClassroomLayoutTests(TestCase):
     def test_other_student_cannot_see_class(self):
         self.client.force_login(self.other)
         self.assertEqual(self.client.get(f"/classes/{self.classroom.id}/").status_code, 403)
+
+    # --- Intégration avec la chaîne #22 → #43 (relecture de #42) ---------------------------------- #
+    def test_gradebook_applies_frozen_all_or_nothing_rule(self):
+        self.exam.multiple_scoring = Exam.ALL_OR_NOTHING
+        self.exam.save()
+        attempt = self.finished_attempt(self.student, {
+            self.q1_ok.question_id: [self.q1_ok.id],  # juste : 2 points
+            self.q2_a.question_id: [self.q2_a.id],    # 1 bonne sur 2 : 0 en « tout ou rien » (0,5 en partiel)
+        })
+        attempt.grading_snapshot = build_grading(self.exam)
+        attempt.save()
+        # Barème modifié après le démarrage : la copie garde celui figé au démarrage.
+        Question.objects.filter(pk=self.q1_ok.question_id).update(points=10)
+        self.assertEqual(final_grades([attempt])[attempt.id], grade_summary(attempt)["final_grade"])
+        self.assertEqual(str(final_grades([attempt])[attempt.id]), "13.33")  # 2 / 3 × 20
+        self.client.force_login(self.teacher)
+        self.assertContains(self.client.get(f"/classes/{self.classroom.id}/?tab=notes"), "13,33")
+
+    def test_start_button_opens_instructions_first(self):
+        ExamEnrollment.objects.filter(exam=self.exam, student=self.student).update(code_verified=True)
+        self.client.force_login(self.student)
+        page = self.client.get(f"/student/exams/{self.exam.id}/")
+        self.assertContains(page, f'href="/student/exams/{self.exam.id}/start/"')
+        self.assertNotContains(page, 'method="post" action="/student/exams/')
+        instructions = self.client.get(f"/student/exams/{self.exam.id}/start/")
+        self.assertEqual(instructions.status_code, 200)
+        self.assertContains(instructions, 'name="confirm"')
+        self.assertFalse(Attempt.objects.filter(exam=self.exam).exists())
+
+    def test_closed_exam_cannot_be_started_from_exam_page(self):
+        ExamEnrollment.objects.filter(exam=self.exam, student=self.student).update(code_verified=True)
+        Exam.objects.filter(pk=self.exam.pk).update(closed_at=timezone.now())
+        self.client.force_login(self.student)
+        # Clôturé et jamais commencé : l'examen n'est plus proposé du tout.
+        self.assertEqual(self.client.get(f"/student/exams/{self.exam.id}/").status_code, 404)
+        self.assertNotContains(self.client.get("/student/todo/"), "Devoir 1")
+
+    def test_expired_attempt_is_closed_before_showing_notes(self):
+        past = timezone.now() - timedelta(minutes=5)
+        attempt = Attempt.objects.create(exam=self.exam, student=self.student,
+                                         question_order=[self.q1_ok.question_id, self.q2_a.question_id],
+                                         global_deadline=past, question_started_at=past - timedelta(minutes=1),
+                                         question_deadline=past)
+        self.client.force_login(self.teacher)
+        self.client.get(f"/classes/{self.classroom.id}/?tab=notes")
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, Attempt.TIME_EXPIRED)
+
+    def test_create_exam_forms_offer_scoring_rule(self):
+        self.client.force_login(self.teacher)
+        self.assertContains(self.client.get(f"/classes/{self.classroom.id}/?tab=travaux"), 'name="multiple_scoring"')
+        self.assertContains(self.client.get("/dashboard/teacher/"), 'name="multiple_scoring"')
+
+    def test_deleting_exam_returns_to_classwork_tab(self):
+        draft = Exam.objects.create(title="Brouillon", teacher=self.teacher, classroom=self.classroom)
+        self.client.force_login(self.teacher)
+        response = self.client.post(f"/teacher/exams/{draft.id}/delete/")
+        self.assertRedirects(response, f"/classes/{self.classroom.id}/?tab=travaux")
