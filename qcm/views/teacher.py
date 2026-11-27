@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from ..models import Profile, Exam, ExamEnrollment, Question, Option, Attempt, Classroom
 from ..permissions import is_admin, is_teacher_or_admin, can_manage_exam, can_manage_classroom
-from ..services import audit, close_expired_attempts, enroll_audience
+from ..services import add_turn_in_counts, audit, close_expired_attempts, enroll_audience
 from .common import class_tab, redirect_back
 
 MAX_OPTIONS = 6
@@ -56,11 +56,10 @@ def teacher_todo(request):
         return redirect("student_todo")
     exams = (Exam.objects.filter(Q(classroom__in=manageable_classrooms(request.user)) | Q(teacher=request.user),
                                  published=True, is_archived=False)
-             .distinct().select_related("classroom")
-             .annotate(assigned_count=Count("enrollments", distinct=True),
-                       turned_in_count=Count("attempts__student", distinct=True,
-                                             filter=~Q(attempts__status=Attempt.IN_PROGRESS)))
-             .order_by("-created_at"))
+             .distinct().select_related("classroom").order_by("-created_at"))
+    # Une copie au temps écoulé jamais rouverte doit compter comme remise.
+    close_expired_attempts(Attempt.objects.filter(exam__in=exams))
+    exams = add_turn_in_counts(exams)
     return render(request, "qcm/teacher_todo.html", {"exams": exams})
 
 

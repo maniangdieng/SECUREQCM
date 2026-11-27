@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 from ..models import Attempt, Classroom, ClassroomMembership, Profile, Exam, generate_class_code
 from ..permissions import (role, is_admin, is_teacher_or_admin, can_manage_classroom,
                            is_classroom_student)
-from ..services import (audit, close_expired_attempts, enroll_student_in_class_exams, final_grades, unenroll_student_from_class_exams,
+from ..services import (add_turn_in_counts, audit, close_expired_attempts, enroll_student_in_class_exams, final_grades, unenroll_student_from_class_exams,
                         visible_exams_for_student)
 from .common import class_tab, redirect_back
 from .student import annotate_exams_for_student
@@ -101,12 +101,9 @@ def classroom_detail(request, classroom_id):
             tab = "flux"
         # Une copie dont le temps est écoulé ne doit pas rester « En cours » (Notes, « Remis »).
         close_expired_attempts(Attempt.objects.filter(exam__classroom=classroom))
-        exams = list(Exam.objects.filter(classroom=classroom).select_related("teacher")
-                     .annotate(question_count=Count("questions", distinct=True),
-                               assigned_count=Count("enrollments", distinct=True),
-                               turned_in_count=Count("attempts__student", distinct=True,
-                                                     filter=~Q(attempts__status=Attempt.IN_PROGRESS)))
-                     .order_by("is_archived", "-created_at"))
+        exams = add_turn_in_counts(Exam.objects.filter(classroom=classroom).select_related("teacher")
+                                   .annotate(question_count=Count("questions", distinct=True))
+                                   .order_by("is_archived", "-created_at"))
         context.update({
             "tab": tab, "exams": exams, "levels": Profile.LEVEL_CHOICES, "colors": Classroom.COLOR_CHOICES,
             "is_owner": classroom.owner_id == request.user.id or is_admin(request.user),
