@@ -22,6 +22,8 @@ urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/accounts/lo
   fi
   sleep 5
 done
-docker compose logs --tail 80 web
-echo "L'application ne répond pas après 5 minutes." >&2
+# Pas de journaux de l'application ici : cette sortie est recopiée dans GitHub Actions, public pour ce dépôt,
+# et les journaux peuvent contenir des données personnelles ou des liens de réinitialisation de mot de passe.
+docker compose ps
+echo "L'application ne répond pas après 5 minutes. Sur le serveur : docker compose logs --tail 100 web" >&2
 exit 1

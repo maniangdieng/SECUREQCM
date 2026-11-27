@@ -12,7 +12,7 @@ set -euo pipefail
 
 REGION="${REGION:-eu-north-1}"
 REPO="${REPO:-maniangdieng/SECUREQCM}"
-INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
+INSTANCE_TYPE="${INSTANCE_TYPE:-c7i-flex.large}"   # 2 vCPU, 4 Go ; inclus dans l'offre gratuite
 DISK_GB="${DISK_GB:-30}"
 NAME=secureqcm
 export AWS_DEFAULT_REGION="$REGION"

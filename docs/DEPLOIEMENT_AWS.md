@@ -14,7 +14,7 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 | Élément | Choix |
 |---|---|
 | Région | `eu-north-1` (Stockholm) |
-| Serveur | `t3.medium` (2 vCPU, 4 Go), Ubuntu 24.04, disque chiffré de 30 Go, IP fixe |
+| Serveur | `c7i-flex.large` (2 vCPU, 4 Go, inclus dans l'offre gratuite AWS ; `t3.medium` ailleurs), Ubuntu 24.04, disque chiffré de 30 Go, IP fixe |
 | Adresse | `https://<ip-avec-tirets>.sslip.io` (certificat Let's Encrypt obtenu par Caddy) |
 | Ports ouverts | 80 et 443 seulement. **Pas de SSH** : l'accès passe par Session Manager |
 | Secrets | générés sur le serveur dans `/opt/secureqcm/.env` (lisible par root seul), jamais dans Git ni GitHub |
@@ -56,6 +56,6 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 
 ## Coût et arrêt
 
-Environ 35 $/mois pour le serveur, plus le disque et l'IP fixe. Pour tout supprimer : terminer l'instance
+Avec l'offre gratuite AWS, le serveur et 30 Go de disque sont couverts dans ses limites ; sinon environ 35 $/mois. L'IP fixe est facturée (environ 3,6 $/mois). Pour tout supprimer : terminer l'instance
 `secureqcm`, libérer l'IP élastique `secureqcm`, supprimer le groupe de sécurité `secureqcm-web` et les rôles IAM
 `secureqcm-ec2` et `secureqcm-github-deploy`. **Terminer l'instance efface la base** : sauvegarder avant.
