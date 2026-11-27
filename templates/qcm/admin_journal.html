@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Journal des opérations{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="{% url 'admin_dashboard' %}">Administration</a> › Journal</div>
+<div class="page-head">
+  <div><h1>Journal des opérations</h1><p>Opérations administratives, en lecture seule. Les modifications faites dans l'administration technique ont leur propre historique.</p></div>
+</div>
+
+<form method="get" class="card flat row" style="margin-bottom:18px">
+  <label class="grow mb-0">Rechercher<input name="q" value="{{ query }}" placeholder="Auteur, opération, cible…"></label>
+  <button class="btn" type="submit">Filtrer</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Auteur</th><th>Opération</th><th>Cible</th><th>Détails</th></tr></thead>
+    <tbody>
+    {% for e in page %}
+    <tr>
+      <td class="small">{{ e.created_at|date:"d/m/Y H:i:s" }}</td>
+      <td>{{ e.actor_name }}</td>
+      <td><strong>{{ e.action }}</strong></td>
+      <td>{{ e.target }}</td>
+      <td class="small">{{ e.details|default:"—" }}</td>
+    </tr>
+    {% empty %}<tr><td colspan="5" class="muted center">Aucune opération.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if page.has_other_pages %}
+  <div class="spread" style="margin-top:14px">
+    <span class="muted small">Page {{ page.number }} / {{ page.paginator.num_pages }} · {{ page.paginator.count }} opérations</span>
+    <div class="actions">
+      {% if page.has_previous %}<a class="btn ghost sm" href="?q={{ query|urlencode }}&page={{ page.previous_page_number }}">← Précédent</a>{% endif %}
+      {% if page.has_next %}<a class="btn ghost sm" href="?q={{ query|urlencode }}&page={{ page.next_page_number }}">Suivant →</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

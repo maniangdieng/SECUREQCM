@@ -1,0 +1,15 @@
+# Configuration de ruff (linter + formateur). Voir l'issue #5.
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["qcm/migrations"]
+
+[tool.ruff.lint]
+# Règles volontairement limitées pour ne pas bloquer l'équipe :
+# erreurs de syntaxe, imports/variables inutilisés, noms indéfinis.
+# On pourra en ajouter (I = tri des imports, B = bugbear...) après la livraison.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests d'origine du professeur : imports au milieu du fichier, on n'y touche pas.
+"qcm/tests.py" = ["E402"]

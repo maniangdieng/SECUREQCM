@@ -2,10 +2,18 @@
 {% block title %}Importer un QCM{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Importer un QCM</h1><p>PDF, Word ou Excel. L'examen est créé en brouillon : il reste invisible pour les étudiants avant publication.</p></div>
+  <div><h1>Importer un QCM</h1><p>PDF, Word, Excel ou JSON. L'examen est créé en brouillon : il reste invisible pour les étudiants avant publication.</p></div>
 </div>
 
-<div class="layout-side" style="grid-template-columns:1fr 340px">
+{% if import_errors %}
+<div class="alert error" role="alert">
+  <strong>Rien n'a été importé : corrigez le fichier puis envoyez-le à nouveau.</strong>
+  <ul>{% for error in import_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+</div>
+<br>
+{% endif %}
+
+<div class="layout-side aside-right">
   <div class="card">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
@@ -32,7 +40,7 @@
         </label>
         <label style="width:160px">Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180"></label>
       </div>
-      <label>Fichier du sujet<input type="file" name="subject_file" accept=".pdf,.docx,.xlsx,.xlsm" required><span class="help">PDF (texte sélectionnable), DOCX, XLSX — 15 Mo max.</span></label>
+      <label>Fichier du sujet<input type="file" name="subject_file" accept=".pdf,.docx,.xlsx,.xlsm,.json" required><span class="help">PDF (texte sélectionnable), DOCX, XLSX, JSON — 15 Mo max.</span></label>
 
       <fieldset>
         <legend>Bonnes réponses</legend>
@@ -48,7 +56,17 @@
   <aside class="card flat">
     <h3>Format attendu</h3>
     <p class="small"><strong>PDF / Word :</strong> numéro de question, énoncé, puis propositions sur des lignes distinctes : <code>A)</code>, <code>B)</code>, <code>C)</code>, <code>D)</code>. Ligne facultative <code>Réponse : B</code>.</p>
-    <p class="small"><strong>Excel :</strong> une question par ligne, colonnes <code>Question</code>, <code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>, <code>Réponse</code> (ex. <code>A</code> ou <code>A,C</code>).</p>
+    <p class="small"><strong>Excel :</strong> une question par ligne, colonnes <code>Question</code>, <code>A</code>, <code>B</code>, <code>C</code>, <code>D</code> (jusqu'à <code>H</code>), <code>Réponse</code> (ex. <code>A</code> ou <code>A,C</code>).</p>
+    <p class="small"><strong>JSON :</strong> encodage UTF-8. <code>type</code> (<code>SINGLE</code> ou <code>MULTIPLE</code>) et <code>points</code> (1 par défaut) sont facultatifs.</p>
+    <pre class="small" style="overflow-x:auto">{"questions": [
+  {"text": "2 + 2 ?",
+   "type": "SINGLE",
+   "points": 1,
+   "options": [
+     {"text": "4", "correct": true},
+     {"text": "5", "correct": false}
+   ]}
+]}</pre>
     <p class="small muted">Modèle : <code>qcm_data/modele_import_qcm.xlsx</code>. Les PDF scannés (images) ne sont pas lus : OCR non inclus.</p>
   </aside>
 </div>

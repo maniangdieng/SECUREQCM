@@ -1,6 +1,9 @@
 # Secure QCM : description du projet et perspectives
 
-*Document de travail de l'équipe. Mis à jour le 25/11/2026, après la reprise du projet transmis par le professeur.*
+*Document de travail de l'équipe. Rédigé le 25/11/2026, après la reprise du projet transmis par le professeur.*
+
+*Mise à jour du 27/11/2026 : règles du §1.2 et cases du §3. Les évolutions cochées sont dans des pull requests à relire ;
+voir le [rapport de validation](RAPPORT_VALIDATION.md). La copie PDF date du 25/11.*
 
 ---
 
@@ -36,12 +39,12 @@ Ces règles sont couvertes par des tests automatisés. **Ne pas les modifier san
 1. **Connexion unifiée** : chaque rôle est redirigé vers son espace, et le paramètre `?next=` est ignoré.
 2. **Code d'accès par examen** : même affecté, un étudiant doit saisir le code de l'examen avant de le démarrer.
 3. **Ciblage** : on peut viser *toute la classe* (nouveau mode), *tout un niveau* (L1…Doctorat) ou une *liste CSV de matricules*.
-4. **Temps** : il est contrôlé côté serveur. Le temps par question vaut durée totale ÷ nombre de questions, avec les secondes réparties exactement. À expiration, la réponse est enregistrée blanche. Pas de retour en arrière.
-5. **Sécurité** : la 1re violation (sortie du plein écran ou changement d'onglet) donne un avertissement, la 2e clôture l'examen (`TERMINATED_SECURITY`). Cette clôture est **définitive** : impossible de reprendre ou de recommencer.
-6. **Notation** : en réponse unique, c'est tout ou rien. En réponses multiples, la note est partielle (bonnes − mauvaises) / nombre de bonnes, bornée entre 0 et 1. Les questions sans réponse valent 0 et la note est ramenée sur 20.
+4. **Temps** : il est contrôlé côté serveur. Le temps par question vaut durée totale ÷ nombre de questions, avec les secondes réparties exactement. À expiration, la dernière sélection sauvegardée est conservée ; sans sélection, la réponse est blanche. Pas de retour en arrière.
+5. **Sécurité** : la 1re violation (sortie du plein écran, changement d'onglet ou perte de focus de plus de 2 secondes) donne un avertissement, la 2e clôture l'examen (`TERMINATED_SECURITY`). L'étudiant ne peut ni reprendre ni recommencer de lui-même ; l'enseignant ou l'administration peut **autoriser une reprise** motivée et tracée.
+6. **Notation** : en réponse unique, c'est tout ou rien. En réponses multiples, la note est par défaut partielle, (bonnes − mauvaises) / nombre de bonnes, bornée entre 0 et 1 ; l'enseignant peut choisir le tout ou rien, annoncé aux étudiants. Les questions sans réponse valent 0 et la note est ramenée sur 20.
 7. **Cycle de vie d'un examen** : sans tentative, suppression normale. Avec tentatives, archivage obligatoire. La suppression définitive d'un examen archivé exige l'export CSV et la saisie de `SUPPRIMER` (admin uniquement).
 8. **Durée et questions** sont verrouillées dès qu'une tentative existe ; les questions le sont aussi dès la publication.
-9. **Import** de sujets PDF, DOCX ou XLSX, avec corrigé intégré, séparé ou manuel, puis prévisualisation et création en brouillon.
+9. **Import** de sujets PDF, DOCX, XLSX ou JSON, avec corrigé intégré, séparé ou manuel, puis prévisualisation et création en brouillon. Si une question est invalide, rien n'est importé et chaque problème est signalé (numéro et motif).
 
 ### 1.3 Architecture du code
 
@@ -52,16 +55,18 @@ qcm/
                       Question, Option, Attempt, Response, SecurityEvent
   permissions.py      TOUTES les règles d'accès (role, can_manage_exam, can_manage_classroom…)
   services.py         logique métier partagée : affectations, calcul des notes
-  importers.py        lecture PDF / Word / Excel
+  importers.py        lecture PDF / Word / Excel / JSON
   urls.py             routes de l'application
   views/              une vue par espace fonctionnel (voir la répartition de l'équipe plus bas)
     auth.py  admin.py  classrooms.py  teacher.py  imports.py  student.py  attempts.py  results.py
   tests.py            tests d'origine (rôles, temps, ciblage, archivage, verrouillage sécurité)
   tests_classrooms.py tests des classes, validations, gestion des comptes, parcours complet
+  tests_*.py          les autres tests, un fichier par sujet
 templates/            pages HTML (base.html + qcm/* + registration/*)
 static/css/app.css    charte graphique (variables CSS en tête de fichier)
 static/js/app.js      confirmations, copie des codes, boîtes de dialogue
-docs/                 ce document, la checklist de déploiement, l'historique des versions du professeur
+docs/                 guides, documentation technique, exploitation, ce document, historique des versions
+deploy/               configuration HTTPS (Caddy) et script de sauvegarde
 ```
 
 ---
@@ -105,15 +110,15 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 
 ### 3.1 Sécurité et fiabilité de l'examen
 
-- [ ] **P1 : passage d'examen sans rechargement de page.** Aujourd'hui chaque question recharge la page. Or le navigateur quitte le plein écran à chaque navigation, et l'étudiant doit recliquer sur « Continuer en plein écran » à chaque question. Il faut soumettre les réponses en `fetch()` et charger la question suivante en JSON. *(fichiers : `views/attempts.py`, `take_exam.html`)*
+- [x] **P1 : passage d'examen sans rechargement de page.** Aujourd'hui chaque question recharge la page. Or le navigateur quitte le plein écran à chaque navigation, et l'étudiant doit recliquer sur « Continuer en plein écran » à chaque question. Il faut soumettre les réponses en `fetch()` et charger la question suivante en JSON. *(fichiers : `views/attempts.py`, `take_exam.html`)* *(PR #22)*
 - [ ] **P1 : vérifier les faux positifs en conditions réelles.** Un `alert()` d'avertissement ou un changement d'onglet peut faire sortir du plein écran et générer **deux événements pour une seule action**. Le verrou `reporting` du JavaScript ne le couvre qu'en partie. À tester sur Chrome, Firefox et Edge, puis à remplacer par une modale HTML et un délai anti-doublon côté serveur.
 - [ ] **P1 : limiter les tentatives de connexion** (bruteforce), par exemple avec `django-axes`.
 - [ ] **P1 : test de charge** avec l'effectif maximal (ex. 200 étudiants simultanés) sur la machine cible.
 - [ ] **P2 : intégration Safe Exam Browser** (fichier `.seb`, vérification des en-têtes BEK/CK).
 - [ ] **P2 : fenêtre d'ouverture de l'examen** (date et heure de début et de fin) : aujourd'hui un examen publié reste ouvert indéfiniment.
-- [ ] **P2 : action enseignant « autoriser une reprise »** après une clôture de sécurité contestée (avec trace dans le journal), puisque la clôture est définitive par conception.
-- [ ] **P2 : supprimer un enseignant** qui possède des examens avec tentatives provoque une erreur (`Exam.teacher` en CASCADE mais `Attempt.exam` en PROTECT). Décider : `PROTECT` ou transfert des examens à un autre enseignant.
-- [ ] **P3 : journal d'audit** des actions admin (changement de rôle, suppression, archivage).
+- [x] **P2 : action enseignant « autoriser une reprise »** après une clôture de sécurité contestée (avec trace dans le journal), puisque la clôture est définitive par conception. *(PR #22)*
+- [x] **P2 : supprimer un enseignant** qui possède des examens avec tentatives provoque une erreur (`Exam.teacher` en CASCADE mais `Attempt.exam` en PROTECT). Décider : `PROTECT` ou transfert des examens à un autre enseignant. *(PR #22)*
+- [x] **P3 : journal d'audit** des opérations administratives (comptes, rôles, examens, inscriptions, classes), en lecture seule.
 
 ### 3.2 Fonctionnalités façon Google Classroom
 - [ ] **P2 : flux de la classe (annonces)** : l'enseignant publie un message et les étudiants le voient dans la classe.
@@ -122,7 +127,7 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P2 : invitation par e-mail** (étudiants et co-enseignants) et **réinitialisation du mot de passe** par e-mail. Il faut configurer `EMAIL_BACKEND` et ajouter les templates `registration/password_reset_*`.
 - [ ] **P2 : page « Mon profil »** : changer son mot de passe ou son e-mail. Les templates `registration/password_change_*` manquent : Django affiche pour l'instant ceux de l'admin.
 - [ ] **P3 : thèmes et sujets** dans une classe (regrouper les examens par chapitre).
-- [ ] **P3 : archiver un examen depuis l'espace enseignant** (aujourd'hui réservé à l'admin).
+- [x] **P3 : archiver un examen depuis l'espace enseignant** (aujourd'hui réservé à l'admin). *(PR #33)*
 
 ### 3.3 Gestion des examens et questions
 - [ ] **P2 : modifier une question** d'un brouillon (aujourd'hui : supprimer puis recréer) et **réordonner** les questions.
@@ -133,17 +138,20 @@ Priorités : **P1** = à faire avant un vrai examen ; **P2** = fonctionnalité i
 - [ ] **P3 : barème négatif** optionnel pour les mauvaises réponses.
 
 ### 3.4 Résultats et statistiques
-- [ ] **P2 : export Excel natif** (`.xlsx` avec `openpyxl`, déjà en dépendance) en plus du CSV.
-- [ ] **P2 : analyse par question** : taux de réussite, propositions les plus choisies, questions trop faciles ou trop difficiles.
+- [x] **P2 : export Excel natif** (`.xlsx` avec `openpyxl`, déjà en dépendance) en plus du CSV.
+- [x] **P2 : analyse par question** : taux de réussite, propositions les plus choisies, questions trop faciles ou trop difficiles.
+- [x] **P2 : résultats complets** : effectifs par statut, taux de réussite (note ≥ 10/20), réponses justes, fausses et blanches par copie, durée effective, page imprimable pour l'export PDF.
 - [ ] **P3 : graphiques** (répartition des notes) dans la page de résultats.
 
 ### 3.5 Administration
 - [ ] **P2 : création de comptes en masse** par l'admin (import CSV nom, prénom, matricule, niveau).
-- [ ] **P2 : créer un compte enseignant depuis l'application** (aujourd'hui il faut passer par `/admin/` ou promouvoir un compte existant).
+- [x] **P2 : créer un compte depuis l'application** (page « Comptes » ; aucun compte super-administrateur ne peut être créé).
+- [x] **P2 : inscrire un étudiant à un examen** par son matricule, sans retirer les autres inscrits.
+- [x] **P2 : durée de session réglable** (`DJANGO_SESSION_HOURS`, 8 heures d'inactivité par défaut).
 - [ ] **P3 : tableau de bord admin** avec activité récente et examens en cours en temps réel.
 
 ### 3.6 Qualité et outillage de l'équipe
-- [ ] **P1 : initialiser le dépôt Git** et le pousser sur GitHub ou GitLab (le dossier reçu n'est pas un dépôt).
+- [x] **P1 : initialiser le dépôt Git** et le pousser sur GitHub ou GitLab (le dossier reçu n'est pas un dépôt).
 - [ ] **P2 : intégration continue** (GitHub Actions) : `python manage.py check` et `python manage.py test` à chaque pull request.
 - [ ] **P2 : linter et formateur** : `ruff` + `ruff format`, avec un hook `pre-commit`.
 - [ ] **P3 : fixtures de démonstration** (`python manage.py loaddata demo.json`) avec des comptes **fictifs**, pour les démonstrations sans vraies données.

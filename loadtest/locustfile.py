@@ -22,6 +22,7 @@ import json
 import os
 import random
 import re
+from urllib.parse import urlparse
 import threading
 import time
 
@@ -89,17 +90,24 @@ class Etudiant(HttpUser):
         self.dashboard = resp
 
     def start_exam(self):
-        card = exam_card(self.dashboard.text, EXAM_TITLE)
+        # Deux interfaces : carte avec le code et « Commencer » sur l'accueil, ou (façon Classroom, #42)
+        # lien vers la page de l'examen, qui porte le formulaire du code puis « Commencer l'examen ».
+        page, card = self.dashboard, exam_card(self.dashboard.text, EXAM_TITLE)
         if card is None:
-            self.fail("examen introuvable", f"pas de carte « {EXAM_TITLE} » sur le tableau de bord")
+            title = re.escape(html.escape(EXAM_TITLE, quote=False))
+            link = re.search(r'href="(/student/exams/\d+/)"(?:(?!</a>).)*?' + title, self.dashboard.text, re.S)
+            if not link:
+                self.fail("examen introuvable", f"pas d'examen « {EXAM_TITLE} » sur le tableau de bord")
+            page = self.client.get(link.group(1), name="2b. page de l'examen")
+            card = page.text
         exam_id = re.search(r'name="exam_id" value="(\d+)"', card)
         if exam_id:  # code d'accès pas encore saisi
+            back = urlparse(page.url).path
             resp = self.client.post("/student/join-exam/", name="3. saisie du code d'examen",
                                     data={"exam_id": exam_id.group(1), "access_code": EXAM_CODE,
-                                          "next": "/dashboard/student/",
-                                          "csrfmiddlewaretoken": csrf(self.dashboard.text)},
-                                    headers={"Referer": self.dashboard.url})
-            card = exam_card(resp.text, EXAM_TITLE) or ""
+                                          "next": back, "csrfmiddlewaretoken": csrf(page.text)},
+                                    headers={"Referer": page.url})
+            card = (exam_card(resp.text, EXAM_TITLE) if page is self.dashboard else resp.text) or ""
         start = re.search(r'href="(/student/exams/\d+/start/)"', card)
         if not start:
             self.fail("code refusé", "pas de lien « Commencer » après la saisie du code")

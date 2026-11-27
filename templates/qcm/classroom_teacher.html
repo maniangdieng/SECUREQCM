@@ -130,10 +130,11 @@
         </select>
       </label>
       <label>Durée (minutes)<input type="number" name="duration" value="60" min="1" max="180" required></label>
+      {% include "qcm/_exam_settings_fields.html" with exam=None %}
       <button class="btn block" type="submit">Créer en brouillon</button>
     </form>
     <hr>
-    <a class="btn ghost block" href="{% url 'import_qcm' %}?classe={{ classroom.id }}">Importer un sujet (PDF, Word, Excel)</a>
+    <a class="btn ghost block" href="{% url 'import_qcm' %}?classe={{ classroom.id }}">Importer un sujet (PDF, Word, Excel, JSON)</a>
   </aside>
 
   <section>
@@ -144,7 +145,7 @@
         <a href="{% url 'teacher_exam' e.id %}"><strong>{{ e.title }}</strong></a>
         <div class="meta">{{ e.question_count }} question{{ e.question_count|pluralize }} · {{ e.duration_minutes }} min · {{ e.get_audience_mode_display }} · {{ e.attempt_count }} copie{{ e.attempt_count|pluralize }}</div>
       </div>
-      <span class="badge {% if e.is_archived %}archived{% elif e.published %}published{% else %}draft{% endif %}">{{ e.state_label }}</span>
+      <span class="badge {{ e.state_badge }}">{{ e.state_label }}</span>
       <div class="actions">
         <a class="btn ghost sm" href="{% url 'teacher_exam' e.id %}">Gérer</a>
         {% if e.published %}<a class="btn sm" href="{% url 'exam_results' e.id %}">Résultats</a>{% endif %}
