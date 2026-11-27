@@ -3,6 +3,9 @@
 services:
   web:
     ports: !reset []   # l'application n'est plus joignable en HTTP depuis le réseau
+    environment:
+      # Le blocage après échecs de connexion (django-axes, #19) lit l'adresse du poste transmise par Caddy.
+      AXES_BEHIND_PROXY: "1"
   caddy:
     image: caddy:2
     restart: unless-stopped
