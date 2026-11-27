@@ -27,6 +27,25 @@ export DJANGO_CSRF_TRUSTED_ORIGINS=http://192.168.1.12:8000
 python manage.py runserver 0.0.0.0:8000
 ```
 
+## Données de démonstration
+
+Pour tester ou faire une démo sans vraies données :
+
+```bash
+python manage.py seed_demo                 # 1 admin, 2 enseignants, 20 étudiants, 2 classes, 3 examens
+python manage.py seed_demo --reset         # repartir de zéro
+python manage.py seed_demo --reset --students 200   # pour un test de charge
+```
+
+Tous les comptes commencent par `demo_` (`demo_admin`, `demo_prof1`, `demo_etu001`…), mot de passe commun
+`Demo-SecureQCM-2026`. Examens publiés : codes d'accès `DEMOGL01` et `DEMOBD01`. La commande refuse de s'exécuter
+avec `DJANGO_DEBUG=0` sauf `--force`. `--reset` ne supprime que les comptes créés par la commande
+(identifiant `demo_…` **et** e-mail `<identifiant>@demo.invalid`) : un vrai compte dont l'identifiant commence par
+`demo_` n'est jamais touché.
+
+> ⚠️ `demo_admin` est administrateur avec un mot de passe connu : ne jamais laisser les données de démo sur le
+> serveur d'un vrai examen.
+
 ## Tests
 
 ```bash
