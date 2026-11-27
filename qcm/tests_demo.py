@@ -58,3 +58,49 @@ class SeedDemoTests(TestCase):
     def test_refuse_en_production_sans_force(self):
         with self.assertRaises(CommandError):
             self.run_seed()
+
+
+@override_settings(DEBUG=True)
+class SeedDemoResetSafetyTests(TestCase):
+    """Relecture de la PR #20 : --reset ne doit jamais toucher de vraies données."""
+
+    def run_seed(self, *args):
+        call_command("seed_demo", *args, stdout=StringIO())
+
+    def test_reset_epargne_un_vrai_compte_demo_(self):
+        from qcm.models import Attempt
+        self.run_seed("--students", "2")
+        # Un vrai étudiant inscrit avec un identifiant qui commence par demo_, et sa copie.
+        real = User.objects.create_user(username="demo_reel", password="x", email="awa@example.com")
+        exam = Exam.objects.create(title="Vrai examen", teacher=User.objects.create_user("vrai_prof"),
+                                   duration_minutes=10, access_code="VRAI0001")
+        from django.utils import timezone
+        now = timezone.now()
+        Attempt.objects.create(exam=exam, student=real, global_deadline=now, question_started_at=now,
+                               question_deadline=now)
+        self.run_seed("--students", "2", "--reset")
+        self.assertTrue(User.objects.filter(username="demo_reel").exists())
+        self.assertTrue(Attempt.objects.filter(student=real).exists())
+
+    def test_meme_email_demo_mais_autre_identifiant_epargne(self):
+        User.objects.create_user(username="demo_x", password="x", email="demo_etu001@demo.invalid")
+        self.run_seed("--students", "1")
+        self.run_seed("--students", "1", "--reset")
+        self.assertTrue(User.objects.filter(username="demo_x").exists())
+
+    def test_identifiant_deja_pris_par_un_vrai_compte(self):
+        User.objects.create_user(username="demo_etu001", password="x", email="vrai@example.com")
+        with self.assertRaisesMessage(CommandError, "demo_etu001"):
+            self.run_seed("--students", "2")
+        self.assertFalse(User.objects.filter(username="demo_admin").exists())
+
+    def test_examen_d_un_vrai_enseignant_dans_une_classe_de_demo(self):
+        self.run_seed("--students", "1")
+        prof = User.objects.create_user("vrai_prof")
+        Exam.objects.create(title="Examen réel", teacher=prof, duration_minutes=10, access_code="VRAI0002",
+                            classroom=Classroom.objects.get(join_code="DEMOGLM"))
+        with self.assertRaisesMessage(CommandError, "Examen réel"):
+            self.run_seed("--students", "1", "--reset")
+        # Rien n'a été supprimé.
+        self.assertTrue(User.objects.filter(username="demo_admin").exists())
+        self.assertTrue(Exam.objects.filter(title="Examen réel").exists())
