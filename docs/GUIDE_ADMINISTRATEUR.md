@@ -9,7 +9,7 @@ Installation : [README](../README.md), [HTTPS](HTTPS.md), [sauvegarde](SAUVEGARD
   désactiver un administrateur.
 - L'**administrateur** gère les comptes, les classes et le cycle de vie des examens.
 
-Après connexion, la barre du haut propose **Administration**, **Comptes** et **Classes**.
+Après connexion, le menu latéral propose **Administration**, **Comptes** et **Journal**.
 
 ## Créer un compte
 
@@ -31,9 +31,20 @@ La page **Comptes** permet de chercher (nom, identifiant, e-mail, matricule) et 
 | Changer un mot de passe oublié | super-administrateur : **Administration technique → Utilisateurs**, ou `python manage.py changepassword identifiant` | vérifier d'abord l'identité de la personne |
 | Supprimer un compte | à éviter : désactiver | un compte qui possède des examens, des classes ou des copies ne peut pas être supprimé |
 
-Après fusion de la PR #31, un lien **Mot de passe oublié ?** envoie un lien de réinitialisation aux comptes ayant un
+Le lien **Mot de passe oublié ?** de la page de connexion envoie un lien de réinitialisation aux comptes ayant un
 e-mail ; il faut pour cela configurer un serveur d'e-mail (voir la
 [documentation technique](DOCUMENTATION_TECHNIQUE.md#configuration)).
+
+## Blocage des connexions
+
+Après **5 échecs**, le couple identifiant + adresse IP est bloqué **15 minutes** (`AXES_FAILURE_LIMIT`,
+`AXES_COOLOFF_MINUTES`). Pour débloquer tout de suite une personne, après avoir vérifié son identité :
+
+```bash
+python manage.py axes_reset_username identifiant   # avec Docker : docker compose exec web python manage.py …
+```
+
+Le super-administrateur peut aussi voir et supprimer les tentatives dans `/admin/`, section **Axes**.
 
 ## Classes
 
