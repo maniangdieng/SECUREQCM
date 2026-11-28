@@ -39,7 +39,13 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 ## Au quotidien
 
 - **Déployer** : fusionner dans `main`. Suivi dans l'onglet **Actions → Déploiement AWS**. Relancer à la main :
-  **Run workflow** sur ce même workflow.
+  **Run workflow** sur ce même workflow. Seul le commit en tête de `main` est mis en service automatiquement.
+- **Pendant un examen** : créer la variable du dépôt `DEPLOY_PAUSE=1` (**Settings → Secrets and variables → Actions →
+  Variables**) pour suspendre les déploiements automatiques, la remettre à `0` après.
+- **Ce que fait un déploiement** : construction de l'image (le site tourne encore), sauvegarde de la base, migrations
+  dans un conteneur à part (en cas d'échec, l'ancienne version reste en ligne), puis bascule du conteneur web
+  (quelques secondes d'indisponibilité) et rechargement de Caddy.
+- **Erreurs des tâches planifiées** : `journalctl -t secureqcm-cloture -t secureqcm-sauvegarde`.
 - **Journaux** : Session Manager, puis `cd /opt/secureqcm && sudo docker compose logs --tail 100 web`.
 - **Revenir à une version** : relancer le workflow d'un commit précédent, ou sur le serveur
   `sudo git checkout <commit> && sudo bash deploy/aws/deploy.sh`. Les migrations ne sont pas annulées.
@@ -47,6 +53,11 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
   les copier ailleurs (S3, autre machine) avant un vrai examen.
 
 ## À faire avant un vrai examen
+
+- **Données personnelles** : le serveur est en Suède (Stockholm). Examiner le transfert hors du Sénégal (loi 2008-12,
+  articles 49 à 51) et compléter la notice aux étudiants (`[aucun / préciser]`) dans
+  [DONNEES_PERSONNELLES.md](DONNEES_PERSONNELLES.md) avant d'y mettre de vraies données. Le site est public :
+  l'inscription est ouverte à tous.
 
 - E-mails : la configuration écrit les messages dans les journaux (`console`). Pour « Mot de passe oublié »,
   renseigner un serveur SMTP dans `/opt/secureqcm/.env` puis `sudo bash deploy/aws/deploy.sh`.
@@ -56,6 +67,8 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 
 ## Coût et arrêt
 
-Avec l'offre gratuite AWS, le serveur et 30 Go de disque sont couverts dans ses limites ; sinon environ 35 $/mois. L'IP fixe est facturée (environ 3,6 $/mois). Pour tout supprimer : terminer l'instance
+Avec l'offre gratuite AWS, le serveur et 30 Go de disque sont couverts dans ses limites ; sinon environ 35 $/mois. L'IP fixe est facturée (environ 3,6 $/mois).
+**Le plan gratuit s'arrête au bout de 6 mois ou à l'épuisement des crédits** (100 à 200 $, soit environ 2 à 5 mois à
+ce rythme) : passer le compte en payant avant cette date, sinon le serveur, et la base qu'il contient, sont arrêtés. Pour tout supprimer : terminer l'instance
 `secureqcm`, libérer l'IP élastique `secureqcm`, supprimer le groupe de sécurité `secureqcm-web` et les rôles IAM
 `secureqcm-ec2` et `secureqcm-github-deploy`. **Terminer l'instance efface la base** : sauvegarder avant.

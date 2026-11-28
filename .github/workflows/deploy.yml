@@ -3,6 +3,7 @@ name: Déploiement AWS
 # Chaque push sur main est mis en service sur le serveur EC2, une fois la CI réussie.
 # Accès AWS par OIDC (aucune clé stockée) ; le rôle ne peut que lancer une commande sur ce serveur.
 # Variables du dépôt : AWS_REGION, AWS_INSTANCE_ID, AWS_DEPLOY_ROLE_ARN (voir docs/DEPLOIEMENT_AWS.md).
+# DEPLOY_PAUSE=1 suspend les déploiements automatiques (pendant un examen) ; le lancement manuel reste possible.
 on:
   workflow_run:
     workflows: [CI]
@@ -23,16 +24,34 @@ jobs:
     name: Mise en service
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+      (vars.DEPLOY_PAUSE != '1' &&
+       github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     # Pas d'« environment » : il changerait l'identité OIDC attendue par le rôle AWS (branche main).
     runs-on: ubuntu-latest
     steps:
+      # Une ancienne CI relancée, ou qui finit après une plus récente, ne doit pas remettre une ancienne version.
+      # Seulement au premier essai : relancer ce workflow à la main reste le moyen de revenir en arrière.
+      - name: Vérifier que le commit est toujours la tête de main
+        id: head
+        if: github.event_name == 'workflow_run' && github.run_attempt == 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$head" != "$SHA" ]; then
+            echo "::notice::$SHA n'est plus la tête de main ($head) : pas de déploiement."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.head.outputs.skip != '1'
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Déployer la version sur le serveur
+        if: steps.head.outputs.skip != '1'
         env:
           INSTANCE: ${{ vars.AWS_INSTANCE_ID }}
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}

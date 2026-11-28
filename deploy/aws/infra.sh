@@ -88,11 +88,16 @@ if ! aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$OIDC"
   aws iam create-open-id-connect-provider --url https://token.actions.githubusercontent.com \
     --client-id-list sts.amazonaws.com --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 >/dev/null
 fi
+# GitHub envoie l'identité au format immuable « repo:<owner>@<id>/<dépôt>@<id>:ref:… » quand le dépôt l'a activé
+# (c'est le cas ici). Les deux formats sont acceptés, toujours limités à la branche main de ce dépôt.
+IDS=$(curl -fsSL "https://api.github.com/repos/$REPO" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["owner"]["id"], d["id"])')
+read -r OWNER_ID REPO_ID <<<"$IDS"
+SUB_IMMUTABLE="repo:${REPO%%/*}@$OWNER_ID/${REPO#*/}@$REPO_ID:ref:refs/heads/main"
 TRUST=$(cat <<EOF
 {"Version": "2012-10-17", "Statement": [{"Effect": "Allow",
   "Principal": {"Federated": "$OIDC"}, "Action": "sts:AssumeRoleWithWebIdentity",
   "Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                                 "token.actions.githubusercontent.com:sub": "repo:$REPO:ref:refs/heads/main"}}}]}
+                                 "token.actions.githubusercontent.com:sub": ["repo:$REPO:ref:refs/heads/main", "$SUB_IMMUTABLE"]}}}]}
 EOF
 )
 if aws iam get-role --role-name "$NAME-github-deploy" >/dev/null 2>&1; then

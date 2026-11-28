@@ -49,8 +49,8 @@ docker compose up -d --build
 
 # Clôture des tentatives expirées chaque minute ; sauvegarde de la base chaque nuit (14 jours gardés).
 cat > /etc/cron.d/secureqcm <<EOF
-* * * * * root cd $APP && docker compose exec -T web python manage.py close_expired_attempts >/dev/null 2>&1
-30 2 * * * root $APP/deploy/sauvegarde.sh /var/backups/secureqcm >/dev/null && find /var/backups/secureqcm -name '*.dump' -mtime +14 -delete
+* * * * * root cd $APP && docker compose exec -T web python manage.py close_expired_attempts 2>&1 | logger -t secureqcm-cloture
+30 2 * * * root ($APP/deploy/sauvegarde.sh /var/backups/secureqcm && find /var/backups/secureqcm -name '*.dump' -mtime +14 -delete) 2>&1 | logger -t secureqcm-sauvegarde
 EOF
 chmod 644 /etc/cron.d/secureqcm
 echo "Installation terminée : https://$SITE_ADDRESS"
