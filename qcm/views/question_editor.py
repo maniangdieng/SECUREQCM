@@ -77,7 +77,7 @@ def _body(request):
 def _question(exam, raw_id):
     try:
         return exam.questions.filter(pk=int(raw_id)).first()
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # OverflowError : Infinity, accepté par le JSON de Python
         return None
 
 

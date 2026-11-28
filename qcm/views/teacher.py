@@ -117,6 +117,8 @@ def validate_question(text, kind, points, options):
     """
     text = str(text or "").strip()
     kind = kind or Question.SINGLE
+    if not isinstance(kind, str):  # JSON : ["x"], {} … (non hachable)
+        kind = ""
     try:
         points = Decimal("1") if points is None else Decimal(str(points).strip().replace(",", "."))
     except (InvalidOperation, TypeError, ValueError):

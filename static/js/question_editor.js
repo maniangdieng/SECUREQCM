@@ -10,7 +10,10 @@
   if (!root || !dataNode || !window.fetch) return;
 
   const MAX = Number(root.dataset.maxOptions) || 8;
-  const csrf = root.querySelector("input[name=csrfmiddlewaretoken]").value;
+  const pageCsrf = root.querySelector("input[name=csrfmiddlewaretoken]").value;
+  // Django change le jeton à chaque connexion : après une reconnexion dans un autre onglet, celui de la page est périmé.
+  const csrfToken = () => document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)?.[1] || pageCsrf;
+  const RETRY_MS = [3000, 6000, 15000, 30000];
   const urlFor = (template, id) => template.replace(/\/0\/(duplicate|delete)\/$/, `/${id}/$1/`);
   const SINGLE = "SINGLE", MULTIPLE = "MULTIPLE";
   const LETTERS = "ABCDEFGH";
@@ -18,20 +21,23 @@
   let seq = 0;
   let activeKey = null;
   let serverOrder = [];
+  let orderQueue = Promise.resolve();   // les envois d'ordre partent l'un après l'autre
+  let orderBusy = 0, orderError = "", orderRetry = null, orderAttempt = 0;
   const questions = JSON.parse(dataNode.textContent).map(fromServer);
   serverOrder = questions.map((q) => q.id);
 
   function fromServer(data) {
     const q = { key: ++seq, id: data.id, text: data.text, kind: data.kind, points: data.points,
                 options: data.options.map((o) => ({ text: o.text, correct: o.correct })),
-                status: "saved", error: "", saving: false, again: false, timer: null };
+                status: "saved", error: "", saving: false, again: false, timer: null, retry: null, attempt: 0 };
     q.savedSnap = snapshot(q);
     return q;
   }
   function blank() {
     return { key: ++seq, id: null, text: "", kind: SINGLE, points: "1",
              options: [{ text: "", correct: false }, { text: "", correct: false }],
-             status: "new", error: "", saving: false, again: false, timer: null, savedSnap: null };
+             status: "new", error: "", saving: false, again: false, timer: null, retry: null, attempt: 0,
+             savedSnap: null };
   }
   function snapshot(q) {
     return JSON.stringify({ text: q.text.trim(), kind: q.kind, points: String(q.points).trim(),
@@ -260,16 +266,26 @@
     });
   }
 
+  const pageCount = document.getElementById("qeCount");
+  const isPending = (q) => q.status === "invalid" && !(q.id === null && isEmpty(q));
+  // Ce qui n'est pas (encore) en base : bloque la publication et avertit avant de quitter la page.
+  function unsaved() {
+    return questions.filter((q) => q.saving || q.timer || q.retry || q.status === "error" || q.status === "dirty"
+      || isPending(q)).length + (orderBusy || orderError ? 1 : 0);
+  }
+
   function refreshHeader() {
     const total = questions.reduce((sum, q) => sum + (Number(String(q.points).replace(",", ".")) || 0), 0);
-    summary.textContent = `${questions.length} question${questions.length > 1 ? "s" : ""} · ` +
-      `${fmtPoints(total)} point${total > 1 ? "s" : ""} au total`;
-    const saving = questions.some((q) => q.saving || q.timer);
+    const count = `${questions.length} question${questions.length > 1 ? "s" : ""}`;
+    summary.textContent = `${count} · ${fmtPoints(total)} point${total > 1 ? "s" : ""} au total`;
+    if (pageCount) pageCount.textContent = count;
+    const saving = questions.some((q) => q.saving || q.timer) || orderBusy;
     const failed = questions.filter((q) => q.status === "error").length;
-    const pending = questions.filter((q) => q.status === "invalid" && !(q.id === null && isEmpty(q))).length;
+    const pending = questions.filter(isPending).length;
     status.className = "qe-status";
     if (saving) status.textContent = "Enregistrement…";
     else if (failed) { status.textContent = "Des modifications n'ont pas pu être enregistrées."; status.classList.add("is-error"); }
+    else if (orderError) { status.textContent = `Ordre des questions non enregistré : ${orderError}`; status.classList.add("is-error"); }
     else if (pending) { status.textContent = `${pending} question${pending > 1 ? "s" : ""} à compléter, non enregistrée${pending > 1 ? "s" : ""}.`; status.classList.add("is-warn"); }
     else status.textContent = "Toutes les modifications sont enregistrées.";
   }
@@ -310,9 +326,11 @@
     let response;
     try {
       response = await fetch(url, { method: "POST", credentials: "same-origin", body: JSON.stringify(body || {}),
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf, Accept: "application/json" } });
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken(), Accept: "application/json" } });
     } catch (e) {
-      throw new Error("Serveur injoignable : vérifiez la connexion, l'enregistrement sera retenté.");
+      const error = new Error("Serveur injoignable : nouvel essai automatique dans quelques secondes.");
+      error.network = true;
+      throw error;
     }
     const json = (response.headers.get("content-type") || "").includes("application/json");
     const data = json ? await response.json().catch(() => ({})) : {};
@@ -328,6 +346,7 @@
 
   function changed(q) {
     clearTimeout(q.timer);
+    clearTimeout(q.retry); q.retry = null; q.attempt = 0;
     q.timer = setTimeout(() => { q.timer = null; save(q); }, 900);
     if (q.status === "error" || q.status === "invalid") { q.status = "dirty"; paintMessage(q); }
     refreshHeader();
@@ -335,6 +354,7 @@
 
   async function save(q) {
     clearTimeout(q.timer); q.timer = null;
+    clearTimeout(q.retry); q.retry = null;
     if (!questions.includes(q)) return;
     const error = problem(q);
     if (error) { q.status = "invalid"; q.error = error; paintMessage(q); refreshHeader(); return; }
@@ -352,13 +372,23 @@
     try {
       const data = await post(root.dataset.saveUrl, body);
       q.id = data.question.id;
-      q.points = data.question.points;
-      q.savedSnap = snap;
-      q.status = snapshot(q) === snap ? "saved" : "dirty";
+      q.attempt = 0;
       q.error = "";
+      if (!questions.includes(q)) { await dropDeleted(q); return; }  // supprimée pendant l'enregistrement
+      if (snapshot(q) === snap) {
+        q.points = data.question.points;  // barème normalisé par le serveur (« 2.50 » → « 2.5 »)
+        q.savedSnap = snapshot(q);
+        q.status = "saved";
+      } else {  // modifiée pendant l'envoi : la base a `snap`, l'écran a plus récent
+        q.savedSnap = snap;
+        q.status = "dirty";
+      }
       await syncOrder();
     } catch (e) {
       q.status = "error"; q.error = e.message;
+      if (e.network && questions.includes(q)) {
+        q.retry = setTimeout(() => { q.retry = null; save(q); }, RETRY_MS[Math.min(q.attempt++, RETRY_MS.length - 1)]);
+      }
     } finally {
       q.saving = false;
       paintMessage(q);
@@ -368,36 +398,61 @@
     }
   }
 
-  async function syncOrder() {
+  // Un envoi à la fois : le second part de l'ordre que le serveur a confirmé pour le premier.
+  function syncOrder() {
+    orderBusy++; refreshHeader();
+    orderQueue = orderQueue.then(sendOrder).finally(() => { orderBusy--; refreshHeader(); });
+    return orderQueue;
+  }
+  async function sendOrder() {
+    clearTimeout(orderRetry); orderRetry = null;
     // Le serveur attend toutes ses questions : on n'envoie que si les deux listes contiennent les mêmes.
     const wanted = questions.filter((q) => q.id).map((q) => q.id);
     const same = wanted.length === serverOrder.length && serverOrder.every((id) => wanted.includes(id));
-    if (!same || wanted.every((id, i) => id === serverOrder[i])) return;
-    try { await post(root.dataset.orderUrl, { order: wanted }); }
-    catch (e) { status.textContent = e.message; status.className = "qe-status is-error"; }
+    if (!same || wanted.every((id, i) => id === serverOrder[i])) { orderError = ""; return; }
+    try {
+      await post(root.dataset.orderUrl, { order: wanted });
+      orderError = ""; orderAttempt = 0;
+    } catch (e) {
+      orderError = e.message;
+      if (e.network) orderRetry = setTimeout(syncOrder, RETRY_MS[Math.min(orderAttempt++, RETRY_MS.length - 1)]);
+    }
   }
 
   // ---------------------------------------------------------------- actions
+  function closeActive() {
+    const previous = byKey(activeKey);
+    activeKey = null;
+    if (previous) save(previous);
+  }
+
   function addQuestion() {
     const q = blank();
     const at = activeKey ? questions.indexOf(byKey(activeKey)) + 1 : questions.length;
     questions.splice(at, 0, q);
+    closeActive();
     renderAll();
-    activeKey = null;
     activate(q.key, ".qe-text");
   }
 
   async function remove(q) {
     if (q.id && !isEmpty(q) && !window.confirm("Supprimer cette question ?")) return;
-    clearTimeout(q.timer);
-    const index = questions.indexOf(q);
-    questions.splice(index, 1);
+    clearTimeout(q.timer); q.timer = null;
+    clearTimeout(q.retry); q.retry = null;
+    q.removedAt = questions.indexOf(q);
+    questions.splice(q.removedAt, 1);
     activeKey = null;
     renderAll();
-    if (!q.id) return;
+    // Pas encore en base : si sa création est en cours, save() la supprimera dès qu'elle aura un identifiant.
+    if (q.id) await dropDeleted(q);
+  }
+
+  async function dropDeleted(q) {
     try { await post(urlFor(root.dataset.deleteUrl, q.id)); }
-    catch (e) {  // remise en place : la suppression a échoué
-      questions.splice(index, 0, q); q.status = "error"; q.error = e.message; renderAll();
+    catch (e) {  // remise en place : la suppression a échoué, la question est toujours dans l'examen
+      questions.splice(Math.min(q.removedAt, questions.length), 0, q);
+      q.status = "error"; q.error = `Suppression non effectuée : ${e.message}`;
+      renderAll();
     }
     refreshHeader();
   }
@@ -413,7 +468,7 @@
       Object.assign(copy, { text: q.text, kind: q.kind, points: q.points, options: q.options.map((o) => ({ ...o })) });
     }
     questions.splice(index + 1, 0, copy);
-    activeKey = null;
+    closeActive();
     renderAll();
     activate(copy.key, ".qe-text");
     if (!copy.id) save(copy);
@@ -463,10 +518,23 @@
   });
 
   window.addEventListener("beforeunload", (event) => {
-    const unsaved = questions.some((q) => q.saving || q.timer || q.status === "error" || q.status === "dirty"
-      || (q.status === "invalid" && !(q.id === null && isEmpty(q))));
-    if (unsaved) { event.preventDefault(); event.returnValue = ""; }
+    if (unsaved()) { event.preventDefault(); event.returnValue = ""; }
   });
+
+  // 7 : la publication est définitive ; elle doit porter sur ce qui est affiché. Écoute en phase de capture,
+  // avant la confirmation générique de app.js.
+  document.addEventListener("submit", (event) => {
+    if (!event.target.matches("form[data-publish]")) return;
+    const active = byKey(activeKey);
+    if (active) save(active);
+    if (!unsaved()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    status.textContent = "Publication impossible : des questions ne sont pas encore enregistrées. "
+      + "Complétez ou corrigez les questions signalées, attendez « Toutes les modifications sont enregistrées », puis publiez.";
+    status.className = "qe-status is-error";
+    (list.querySelector(".qe-card.has-problem, .qe-msg.is-warn") || root).scrollIntoView({ block: "center", behavior: "smooth" });
+  }, true);
 
   renderAll();
   placeFab(null);

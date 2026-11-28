@@ -8,7 +8,7 @@
 <div class="page-head">
   <div>
     <h1>{{ exam.title }} <span class="badge {{ exam.state_badge }}">{{ exam.state_label }}</span></h1>
-    <p>{{ exam.duration_minutes }} minutes · {{ questions|length }} question{{ questions|length|pluralize }} · {{ exam.get_audience_mode_display }}{% if exam.target_level %} · {{ exam.get_target_level_display }}{% endif %}{% include "qcm/_exam_window.html" %}</p>
+    <p>{{ exam.duration_minutes }} minutes · <span id="qeCount">{{ questions|length }} question{{ questions|length|pluralize }}</span> · {{ exam.get_audience_mode_display }}{% if exam.target_level %} · {{ exam.get_target_level_display }}{% endif %}{% include "qcm/_exam_window.html" %}</p>
   </div>
   <div class="actions">
     {% if exam.published %}
@@ -17,7 +17,7 @@
       <form method="post" action="{% url 'close_exam' exam.id %}" data-confirm="Clôturer l'examen ? Plus aucune nouvelle tentative ne sera possible. Les tentatives en cours pourront se terminer.">{% csrf_token %}<button class="btn ghost" type="submit">Clôturer</button></form>
       {% endif %}
     {% else %}
-      <form method="post" action="{% url 'publish_exam' exam.id %}" data-confirm="Publier l'examen ? Les questions ne pourront plus être modifiées.">{% csrf_token %}<button class="btn" type="submit">Publier l'examen</button></form>
+      <form method="post" action="{% url 'publish_exam' exam.id %}" data-publish data-confirm="Publier l'examen ? Les questions ne pourront plus être modifiées.">{% csrf_token %}<button class="btn" type="submit">Publier l'examen</button></form>
     {% endif %}
   </div>
 </div>

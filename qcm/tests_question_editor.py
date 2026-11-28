@@ -215,3 +215,18 @@ class QuestionEditorTests(TestCase):
         self.client.post(f"/teacher/exams/{self.exam.id}/question/{b.id}/delete/")
         actions = list(AuditLog.objects.order_by("id").values_list("action", flat=True))
         self.assertEqual(actions, ["Question ajoutée", "Question ajoutée", "Ordre des questions modifié", "Question supprimée"])
+
+    def test_odd_json_values_are_refused_not_crashing(self):
+        q = self.add("Q1")
+        for data in (payload(kind=["x"]), payload(kind={"a": 1}), payload(points="NaN"), payload(points="Infinity")):
+            self.assertEqual(self.post("save/", data).status_code, 400, data)
+        response = self.post("save/", raw=json.dumps(payload(text="Inf"))[:-1] + ', "id": Infinity}')
+        self.assertEqual(response.status_code, 404)
+        response = self.post("save/", raw=json.dumps(payload(text="Après"))[:-1] + ', "after": Infinity}')
+        self.assertEqual(response.status_code, 200)  # « après » inconnu : ajoutée à la fin
+        self.assertEqual(self.order(), [q["text"], "Après"])
+
+    def test_page_marks_publish_form_and_question_count_for_editor(self):
+        page = self.client.get(f"/teacher/exams/{self.exam.id}/")
+        self.assertContains(page, "data-publish")
+        self.assertContains(page, 'id="qeCount"')
