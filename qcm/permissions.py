@@ -9,6 +9,8 @@ Hiérarchie des rôles :
 - Enseignant : crée ses classes et ses examens, gère uniquement ce qui lui appartient
   ou les classes dont il est co-enseignant.
 - Étudiant : rejoint des classes par code, passe les examens auxquels il est affecté.
+- Enseignant en attente (PENDING) : s'est inscrit comme enseignant ; aucun droit tant que
+  l'administration n'a pas validé sa demande.
 """
 from .models import Profile, ClassroomMembership
 
@@ -29,7 +31,7 @@ def role(user):
     except Profile.DoesNotExist:
         profile, _ = Profile.objects.get_or_create(user=user)
         profile_role = profile.role
-    if profile_role in ("ADMIN", "TEACHER", "STUDENT"):
+    if profile_role in ("ADMIN", "TEACHER", "STUDENT", "PENDING"):
         return profile_role
     return "STUDENT"
 

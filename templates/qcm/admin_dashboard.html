@@ -13,6 +13,7 @@
 <div class="grid grid-stats">
   <div class="stat"><div class="value">{{ stats.users }}</div><div class="label">Comptes</div></div>
   <div class="stat"><div class="value">{{ stats.teachers }}</div><div class="label">Enseignants</div></div>
+  {% if stats.pending %}<a class="stat" href="{% url 'admin_users' %}#demandes"><div class="value">{{ stats.pending }}</div><div class="label">Demande{{ stats.pending|pluralize }} enseignant à valider</div></a>{% endif %}
   <div class="stat"><div class="value">{{ stats.students }}</div><div class="label">Étudiants</div></div>
   <div class="stat"><div class="value">{{ stats.classrooms }}</div><div class="label">Classes actives</div></div>
   <div class="stat"><div class="value">{{ stats.exams }}</div><div class="label">Examens actifs</div></div>

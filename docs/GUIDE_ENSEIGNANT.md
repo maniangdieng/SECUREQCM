@@ -1,6 +1,11 @@
 # Guide de l'enseignant
 
-Le compte enseignant est créé, ou le rôle attribué, par l'administration.
+Deux façons d'obtenir un compte enseignant :
+
+- **S'inscrire** : page **Connexion → Créer un compte**, choisir **Enseignant** (prénom, nom, e-mail, identifiant, mot
+  de passe). Le compte reste **en attente** jusqu'à la validation par l'administration ; ensuite, la connexion mène
+  directement à l'espace enseignant.
+- **Demander à l'administration** de créer le compte (**Comptes → Créer un compte enseignant**).
 
 ## Les classes
 
