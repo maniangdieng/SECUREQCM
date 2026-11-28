@@ -1,3 +1,7 @@
+from allauth.account import admin as _account_admin  # noqa: F401  (enregistre ses modèles)
+from allauth.account.models import EmailAddress
+from allauth.socialaccount import admin as _social_admin  # noqa: F401
+from allauth.socialaccount.models import SocialApp, SocialToken
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
@@ -87,6 +91,11 @@ class SecurityEventAdmin(ReadOnlyAdmin):
 
 admin.site.register(Response, ReadOnlyAdmin)
 
+
+# Connexion Google : la clé vient des variables d'environnement et aucun jeton n'est conservé. Seuls les
+# comptes liés restent consultables ; une application saisie ici entrerait en conflit avec la clé.
+for model in (SocialApp, SocialToken, EmailAddress):
+    admin.site.unregister(model)
 
 admin.site.unregister(User)
 

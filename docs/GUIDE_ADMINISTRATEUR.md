@@ -16,8 +16,9 @@ Après connexion, le menu latéral propose **Administration**, **Comptes** et **
 Une personne qui s'inscrit comme **Enseignant** n'a aucun droit tant que sa demande n'est pas validée. Les demandes
 s'affichent en haut de **Comptes** (et sur le tableau de bord). **Valider** en fait un enseignant ; **Refuser**
 désactive le compte. Vérifier l'identité de la personne avant de valider : un enseignant voit les résultats de ses
-étudiants. Ne pas se fier à l'adresse e-mail affichée (elle n'est pas confirmée) : vérifier auprès d'une source
-connue (département, annuaire). Les deux décisions sont inscrites au journal.
+étudiants. Ne pas se fier à l'adresse e-mail affichée (l'application ne la confirme pas, et même une adresse Google
+ne prouve pas la fonction) : vérifier auprès d'une source connue (département, annuaire). Les deux décisions sont
+inscrites au journal.
 
 Un étudiant qui a choisi « Enseignant » par erreur et dont la demande a été refusée peut être réactivé depuis
 **Comptes** ; son compte n'a alors ni matricule ni niveau, à saisir depuis `/admin/` (fiche *Profil*).
@@ -45,6 +46,23 @@ La page **Comptes** permet de chercher (nom, identifiant, e-mail, matricule) et 
 Le lien **Mot de passe oublié ?** de la page de connexion envoie un lien de réinitialisation aux comptes ayant un
 e-mail ; il faut pour cela configurer un serveur d'e-mail (voir la
 [documentation technique](DOCUMENTATION_TECHNIQUE.md#configuration)).
+
+## Connexion avec Google
+
+Elle est facultative et ne fonctionne que si les [clés Google](DEPLOIEMENT_AWS.md#connexion-avec-google-facultatif)
+sont renseignées sur le serveur. Étudiants et enseignants peuvent alors créer un compte avec Google ou lier le leur.
+
+- **Les comptes d'administration** (administrateurs et super-administrateur) entrent toujours avec identifiant et mot
+  de passe : ni connexion ni liaison Google.
+- **Nommer administrateur** un compte créé avec Google : la personne doit d'abord définir un mot de passe depuis
+  **Mon profil**, sinon l'application refuse.
+- **Désactiver un compte** bloque aussi sa connexion avec Google.
+- **Personne qui n'a plus accès à son compte Google** et n'a pas de mot de passe : après vérification de son
+  identité, le super-administrateur lui en définit un (**Administration technique → Utilisateurs**, ou
+  `python manage.py changepassword identifiant`).
+- **Journal** : « Compte Google lié », « Compte Google dissocié » et « Mot de passe défini » y sont inscrits.
+- Dans `/admin/`, la liste des comptes sociaux montre les liaisons. Supprimer celle d'un compte sans mot de passe
+  l'empêche de se connecter.
 
 ## Blocage des connexions
 

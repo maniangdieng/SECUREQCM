@@ -2,15 +2,31 @@
 
 ## Se connecter
 
-Sur la page **Connexion**, saisir identifiant et mot de passe. Première fois : **Créer un compte étudiant** (prénom,
-nom, **matricule**, niveau, e-mail facultatif, identifiant, mot de passe d'au moins 8 caractères). Un matricule ne
-sert qu'à un seul compte.
+Sur la page **Connexion**, saisir identifiant et mot de passe. Première fois : **Créer un compte**, choisir
+**Étudiant** (prénom, nom, **matricule**, niveau, e-mail facultatif, identifiant, mot de passe d'au moins
+8 caractères). Un matricule ne sert qu'à un seul compte.
 
 Mot de passe oublié : le lien **Mot de passe oublié ?** envoie un e-mail si le compte en a un ; sinon, contacter
 l'administration.
 
 Après **5 échecs**, la connexion est bloquée **15 minutes** (durée par défaut). Pendant un examen, le signaler au
 surveillant : un administrateur peut lever le blocage.
+
+### Avec Google
+
+Le bouton **Continuer avec Google** n'apparaît que si l'établissement a activé cette connexion.
+
+- **Première fois** : choisir son compte Google, puis remplir **Compléter mon profil** (**Étudiant**, prénom, nom,
+  matricule, niveau). Le compte n'est créé qu'à la validation. L'application attribue un identifiant (en général
+  `prenom.nom`), affiché dans **Mon profil**.
+- **Déjà un compte avec mot de passe** : ne pas en créer un second. Se connecter avec l'identifiant, puis
+  **Mon profil → Lier mon compte Google** (le mot de passe actuel est demandé).
+- **Profil incomplet** : si le matricule ou le niveau manque, ils sont demandés juste après la connexion.
+- **Définir un mot de passe** (compte créé avec Google) : **Mon profil → Confirmer avec Google**, puis **Définir un
+  mot de passe** dans les 5 minutes. Il permet ensuite d'entrer avec l'identifiant, de modifier l'e-mail et de
+  dissocier Google.
+- **Ordinateur partagé** : se déconnecter de Secure QCM **et** de Google, sinon la personne suivante peut choisir
+  votre compte Google.
 
 ## Rejoindre une classe et un examen
 

@@ -1,0 +1,9 @@
+{# Matricule et niveau d'un compte créé ou complété avec Google. #}
+<div class="row" data-for="STUDENT">
+  <label class="grow">Matricule<input name="student_number" required maxlength="40" value="{{ form.student_number.value|default_if_none:'' }}" {% if form.student_number.field.disabled %}disabled{% endif %}></label>
+  <label class="grow">Niveau d'études
+    <select name="study_level" required {% if form.study_level.field.disabled %}disabled{% endif %}>
+      {% for value, label in form.study_level.field.choices %}<option value="{{ value }}" {% if form.study_level.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+</div>

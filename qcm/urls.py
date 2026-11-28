@@ -1,14 +1,26 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from . import views
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("confidentialite/", TemplateView.as_view(template_name="privacy.html"), name="privacy"),
 
     # Comptes
     path("accounts/register/", views.student_register, name="student_register"),
     path("accounts/pending/", views.teacher_pending, name="teacher_pending"),
     path("accounts/profile/", views.profile, name="profile"),
+
+    # Connexion avec Google : seules ces adresses sont ouvertes, pas les pages de django-allauth.
+    # Les noms google_login, google_callback et socialaccount_signup sont ceux que la bibliothèque attend.
+    path("accounts/google/login/", views.google_login, name="google_login"),
+    path("accounts/google/login/callback/", views.google_callback, name="google_callback"),
+    path("accounts/google/signup/", views.google_signup, name="socialaccount_signup"),
+    path("accounts/google/complete/", views.google_complete, name="google_complete"),
+    path("accounts/google/link/", views.google_link, name="google_link"),
+    path("accounts/google/unlink/", views.google_unlink, name="google_unlink"),
+    path("accounts/password/set/", views.password_set, name="password_set"),
 
     # Administration
     path("dashboard/admin/", views.admin_dashboard, name="admin_dashboard"),

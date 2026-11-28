@@ -34,6 +34,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "qcm.apps.QcmConfig",
     "axes",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -44,6 +48,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
+    "qcm.google.ProfileCompletionMiddleware",
     # Doit rester en dernier (django-axes).
     "axes.middleware.AxesMiddleware",
 ]
@@ -121,6 +127,30 @@ AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
 AXES_VERBOSE = False
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
+
+# Connexion avec Google (#47), facultative : active seulement si les deux clés sont renseignées.
+# django-allauth ne sert qu'à Google : ses pages et ses adresses de comptes locaux ne sont pas ouvertes
+# (seules celles déclarées dans qcm/urls.py existent).
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+GOOGLE_LOGIN_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+SOCIALACCOUNT_PROVIDERS = {"google": {
+    # Seuls le nom et l'adresse e-mail sont demandés.
+    "SCOPE": ["profile", "email"],
+    # Postes partagés : Google demande toujours quel compte utiliser.
+    "AUTH_PARAMS": {"prompt": "select_account"},
+    "OAUTH_PKCE_ENABLED": True,
+}}
+if GOOGLE_LOGIN_ENABLED:
+    SOCIALACCOUNT_PROVIDERS["google"]["APPS"] = [{"client_id": GOOGLE_CLIENT_ID, "secret": GOOGLE_CLIENT_SECRET}]
+ACCOUNT_ADAPTER = "qcm.google.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "qcm.google.GoogleAdapter"
+SOCIALACCOUNT_ONLY = True
+SOCIALACCOUNT_AUTO_SIGNUP = False  # le profil est complété avant toute création de compte
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_LOGIN_METHODS = {"username"}
+ACCOUNT_SIGNUP_FIELDS = ["username*"]
+ACCOUNT_UNIQUE_EMAIL = False  # l'adresse n'identifie pas un compte dans cette application
 
 # Sessions (cahier §13) : fermeture après N heures d'inactivité. Chaque requête repousse l'échéance ;
 # le minimum dépasse la durée maximale d'un examen (180 min), qui n'est donc jamais coupé.

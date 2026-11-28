@@ -4,17 +4,13 @@
 {% block content %}
 <div class="card wide">
   <h1>Créer un compte</h1>
+  {% if google_login_enabled %}
+    {% include "registration/_google_button.html" %}
+    <p class="center muted" style="margin-top:12px">ou remplissez le formulaire</p>
+  {% endif %}
   <form method="post" id="registerForm">
     {% csrf_token %}
-    <fieldset class="account-type">
-      <legend>Je suis</legend>
-      <label class="choice-card"><input type="radio" name="account_type" value="STUDENT" {% if form_data.account_type != "TEACHER" %}checked{% endif %}>
-        <span><strong>Étudiant</strong><span class="muted small">Je rejoins des classes avec un code et je passe des examens.</span></span></label>
-      <label class="choice-card"><input type="radio" name="account_type" value="TEACHER" {% if form_data.account_type == "TEACHER" %}checked{% endif %}>
-        <span><strong>Enseignant</strong><span class="muted small">Je crée des classes et des examens. Validation par l'administration.</span></span></label>
-    </fieldset>
-    <p class="muted" data-for="STUDENT">Utilisez les informations de votre carte étudiante. Après la création du compte, rejoignez vos classes avec le code donné par votre enseignant.</p>
-    <p class="muted" data-for="TEACHER">Votre compte est créé tout de suite ; l'administration confirme ensuite que vous êtes enseignant. Vous pourrez alors créer vos classes.</p>
+    {% include "registration/_account_type.html" with selected=form_data.account_type %}
     <div class="row">
       <label class="grow">Prénom<input name="first_name" required value="{{ form_data.first_name }}" autocomplete="given-name"></label>
       <label class="grow">Nom<input name="last_name" required value="{{ form_data.last_name }}" autocomplete="family-name"></label>
@@ -38,24 +34,9 @@
   </form>
   <hr>
   <p class="center muted mb-0">Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></p>
+  <p class="center small" style="margin-top:12px"><a href="{% url 'privacy' %}" target="_blank">Confidentialité</a></p>
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
-(function () {
-  // Affiche les champs du type de compte choisi ; les champs masqués ne sont ni obligatoires ni envoyés.
-  const form = document.getElementById("registerForm");
-  function update() {
-    const type = form.querySelector("input[name=account_type]:checked").value;
-    form.querySelectorAll("[data-for]").forEach(function (el) {
-      const on = el.dataset.for === type;
-      el.hidden = !on;
-      el.querySelectorAll("input, select").forEach(function (f) { f.disabled = !on; });
-    });
-    form.querySelector("input[name=email]").required = type === "TEACHER";
-  }
-  form.addEventListener("change", function (e) { if (e.target.name === "account_type") update(); });
-  update();
-})();
-</script>
+{% include "registration/_account_type_script.html" %}
 {% endblock %}

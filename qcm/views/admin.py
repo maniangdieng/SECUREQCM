@@ -147,6 +147,10 @@ def admin_set_role(request, user_id):
         messages.error(request, "Le rôle d'un super-administrateur ne se modifie pas depuis l'application.")
     elif (new_role == "ADMIN" or role(target) == "ADMIN") and not is_superadmin(request.user):
         messages.error(request, "Seul le super-administrateur peut nommer ou révoquer un administrateur.")
+    elif new_role == "ADMIN" and not target.has_usable_password():
+        # Un administrateur ne se connecte pas avec Google.
+        messages.error(request, f"{target.username} n'a pas de mot de passe. Demandez-lui d'en définir un "
+                                "depuis « Mon profil » avant de le nommer administrateur.")
     else:
         profile = target.profile
         old_label = profile.get_role_display()

@@ -1,0 +1,10 @@
+{# Choix Étudiant / Enseignant. « selected » : valeur déjà choisie. #}
+    <fieldset class="account-type">
+      <legend>Je suis</legend>
+      <label class="choice-card"><input type="radio" name="account_type" value="STUDENT" {% if selected != "TEACHER" %}checked{% endif %}>
+        <span><strong>Étudiant</strong><span class="muted small">Je rejoins des classes avec un code et je passe des examens.</span></span></label>
+      <label class="choice-card"><input type="radio" name="account_type" value="TEACHER" {% if selected == "TEACHER" %}checked{% endif %}>
+        <span><strong>Enseignant</strong><span class="muted small">Je crée des classes et des examens. Validation par l'administration.</span></span></label>
+    </fieldset>
+    <p class="muted" data-for="STUDENT">Utilisez les informations de votre carte étudiante. Après la création du compte, rejoignez vos classes avec le code donné par votre enseignant.</p>
+    <p class="muted" data-for="TEACHER">Votre compte est créé tout de suite ; l'administration confirme ensuite que vous êtes enseignant. Vous pourrez alors créer vos classes.</p>

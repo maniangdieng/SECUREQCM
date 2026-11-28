@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Q
 
 from .models import Classroom, ClassroomMembership, Profile
@@ -11,9 +12,10 @@ def app_role(request):
     """
     user = getattr(request, "user", None)
     if user is None or not user.is_authenticated:
-        return {"app_role": None}
+        return {"app_role": None, "google_login_enabled": settings.GOOGLE_LOGIN_ENABLED}
     current_role = role(user)
-    context = {"app_role": current_role, "is_superadmin": user.is_superuser}
+    context = {"app_role": current_role, "is_superadmin": user.is_superuser,
+               "google_login_enabled": settings.GOOGLE_LOGIN_ENABLED}
     if current_role in ("TEACHER", "ADMIN"):
         context["nav_teaching"] = list(
             Classroom.objects.filter(Q(owner=user) | Q(memberships__user=user, memberships__role=ClassroomMembership.TEACHER),

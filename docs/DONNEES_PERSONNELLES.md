@@ -9,6 +9,7 @@
 | Données | Contenu | Personnes |
 |---|---|---|
 | Compte | identifiant, prénom, nom, e-mail (facultatif pour un étudiant, obligatoire pour une demande de compte enseignant), mot de passe **haché**, date de création, dernière connexion, rôle | toutes |
+| Compte Google lié (si la connexion avec Google est activée) | identifiant du compte chez Google, adresse e-mail Google, dates de liaison et de dernière connexion | étudiants et enseignants qui l'utilisent |
 | Scolarité | matricule, niveau, classes rejointes et rôle dans la classe | étudiants, enseignants |
 | Inscriptions aux examens | examen, origine, code validé, date | étudiants |
 | Copies | début, fin, statut, ordre des questions, barème, réponses et leur date, score | étudiants |
@@ -22,6 +23,15 @@ de passe confiés au serveur d'e-mail.
 
 Le journal des connexions sert à bloquer les essais de mot de passe répétés (`django-axes`). Pour les échecs, il garde
 aussi les champs envoyés, mot de passe masqué.
+
+**Connexion avec Google** (facultative). L'application demande à Google le nom et l'adresse e-mail. À la création du
+compte, le prénom et le nom préremplissent le formulaire, et la personne peut les corriger. Le compte lié ne garde
+que l'identifiant chez Google, l'adresse et les dates : ni photo, ni jeton d'accès. Tant que le formulaire de création
+n'est pas validé, les informations renvoyées par Google restent dans la session. Google sait que la personne s'est
+connectée à ce site. Les comptes d'administration n'utilisent pas ce mode.
+
+La page publique `/confidentialite/` résume ces points aux utilisateurs (modèle : `templates/privacy.html`). Elle fait
+partie de ce qui est à valider : la corriger si l'hébergement, les durées ou les destinataires changent.
 
 L'application dépose deux cookies techniques (`sessionid`, `csrftoken`). Elle n'utilise ni caméra, ni micro, ni outil
 de mesure d'audience, et ne conserve pas les fichiers de sujets importés. Le serveur, le proxy ou l'hébergeur peuvent
@@ -99,6 +109,9 @@ Points à examiner avec un juriste :
 > - **Données** : identité, identifiant, matricule, niveau, e-mail, classes, réponses, notes, journal des événements
 >   survenus pendant l'examen (changement d'onglet, sortie du plein écran, perte de focus, redimensionnement) ;
 >   à chaque connexion ou essai de connexion, adresse IP, navigateur et date.
+> - **Connexion avec Google** `[retirer si elle n'est pas activée]` : elle est facultative. Si vous l'utilisez,
+>   l'application reçoit de Google votre nom et votre adresse e-mail et garde l'identifiant de votre compte Google ;
+>   Google sait que vous vous êtes connecté à ce site.
 > - **Destinataires** : vos enseignants, l'administration, `[autres : hébergeur, jury…]`. Les autres étudiants de vos
 >   classes voient votre nom.
 > - **Réponses obligatoires** : identité, matricule, niveau et identifiant sont nécessaires pour créer le compte et

@@ -108,6 +108,12 @@ python manage.py axes_reset_username <identifiant>     # sous Docker : docker co
 
 Les tentatives sont aussi visibles et supprimables dans `/admin/` (section *Axes*).
 
+## Connexion avec Google (facultative)
+
+Étudiants et enseignants peuvent s'inscrire et se connecter avec leur compte Google dès que `GOOGLE_CLIENT_ID` et
+`GOOGLE_CLIENT_SECRET` sont renseignés : [obtenir les clés](docs/DEPLOIEMENT_AWS.md#connexion-avec-google-facultatif).
+Les administrateurs gardent l'identifiant et le mot de passe.
+
 ## Parcours en bref
 
 | Rôle | Ce qu'il fait |

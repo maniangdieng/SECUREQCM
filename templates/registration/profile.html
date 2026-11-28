@@ -6,6 +6,7 @@
   <h1>Mon profil</h1>
   <p class="mb-0"><strong>{{ user.get_full_name|default:user.username }}</strong></p>
   <p class="muted">Identifiant : {{ user.username }}{% if user.profile.student_number %} · Matricule : {{ user.profile.student_number }}{% endif %}</p>
+  {% if form %}
   <form method="post">
     {% csrf_token %}
     {% for field in form %}
@@ -16,5 +17,41 @@
   </form>
   <hr>
   <a class="btn ghost block" href="{% url 'password_change' %}">Changer mon mot de passe</a>
+  {% else %}
+  <label>Adresse e-mail<input type="email" value="{{ user.email }}" readonly></label>
+  {% if show_google %}
+  <hr>
+  <h2>Définir un mot de passe</h2>
+  <p class="muted">Vous vous connectez avec Google. Un mot de passe vous permet aussi d'entrer avec votre identifiant, de modifier votre adresse e-mail et de dissocier Google.</p>
+  {% if can_set_password %}
+    <a class="btn ghost block" href="{% url 'password_set' %}">Définir un mot de passe</a>
+  {% else %}
+    <p class="muted">Confirmez d'abord que c'est bien vous.</p>
+    {% include "registration/_google_button.html" with label="Confirmer avec Google" %}
+  {% endif %}
+  {% endif %}
+  {% endif %}
+  {% if show_google %}
+  <hr>
+  <h2>Compte Google</h2>
+  {% if google_account %}
+    <p>Compte lié : <strong>{{ google_account.extra_data.email|default:"adresse non communiquée" }}</strong></p>
+    {% if user.has_usable_password %}
+    <form method="post" action="{% url 'google_unlink' %}">
+      {% csrf_token %}
+      <button class="btn danger-ghost block" type="submit">Dissocier Google</button>
+    </form>
+    {% else %}
+    <p class="muted mb-0">Pour dissocier ce compte, définissez d'abord un mot de passe.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">Liez votre compte Google pour vous connecter sans saisir votre mot de passe.</p>
+    <form method="post" action="{% url 'google_link' %}">
+      {% csrf_token %}
+      <label>Mot de passe actuel<input type="password" name="password" required autocomplete="current-password"></label>
+      <button class="btn ghost block" type="submit">Lier mon compte Google</button>
+    </form>
+  {% endif %}
+  {% endif %}
 </div>
 {% endblock %}
