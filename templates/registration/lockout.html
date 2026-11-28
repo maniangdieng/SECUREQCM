@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Connexion temporairement bloquée{% endblock %}
 {% block main_class %}auth{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="center" style="margin-bottom:18px">
-    <span class="brand-mark" style="width:48px;height:48px;font-size:1.1rem;margin:0 auto 12px;display:grid">SQ</span>
+  <div class="center auth-head">
+    <img class="auth-logo" src="{% static 'img/logo-secure-qcm.webp' %}" alt="Secure QCM" width="900" height="417">
     <h1>Trop de tentatives</h1>
   </div>
   <div class="alert error" role="alert">

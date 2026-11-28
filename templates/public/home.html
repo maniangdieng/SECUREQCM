@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Examens QCM en ligne, surveillés{% endblock %}
+{% block body_class %}landing-page{% endblock %}
+{% block main_class %}landing{% endblock %}
+{% block content %}
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-text">
+    <h1 id="hero-title">Des examens QCM en ligne, sérieux du début à la fin.</h1>
+    <p class="hero-lead">L'enseignant crée sa classe et ses questions. Les étudiants rejoignent la classe avec un code et passent l'examen en plein écran, avec un chrono. Les copies sont corrigées dès qu'elles sont remises.</p>
+    <div class="hero-actions">
+      <a class="btn lg" href="{% url 'student_register' %}">Créer un compte étudiant</a>
+      <a class="btn lg ghost" href="{% url 'student_register' %}?type=teacher">Je suis enseignant</a>
+    </div>
+    <p class="hero-note">Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></p>
+  </div>
+
+  <figure class="hero-demo" aria-label="Aperçu d'une question pendant un examen">
+    <div class="demo-card" aria-hidden="true">
+      <div class="demo-top">
+        <strong>Question 4 / 20</strong>
+        <span class="demo-fs">{% include "qcm/_icon.html" with name="fullscreen" %} Plein écran</span>
+      </div>
+      <div class="demo-timers">
+        <div><span>Cette question</span><b>00:42</b></div>
+        <div><span>Examen</span><b>18:05</b></div>
+      </div>
+      <div class="demo-progress"><span></span></div>
+      <p class="demo-q">Quelle commande Git crée une nouvelle branche et s'y place ?</p>
+      <ul class="demo-options">
+        <li>git branch -d nouvelle</li>
+        <li class="is-picked">git checkout -b nouvelle</li>
+        <li>git merge nouvelle</li>
+        <li>git push nouvelle</li>
+      </ul>
+      <p class="demo-mark">Awa Ndiaye · L2-0457</p>
+    </div>
+    <figcaption>Ce que voit l'étudiant : un chrono par question, un pour l'examen, et son nom en filigrane.</figcaption>
+  </figure>
+</section>
+
+<section class="steps" aria-labelledby="steps-title">
+  <h2 id="steps-title">Un examen en quatre étapes</h2>
+  <ol class="steps-list">
+    <li><h3>Créer la classe</h3><p>L'enseignant ouvre sa classe. Elle reçoit un code de 7 caractères à partager avec ses étudiants.</p></li>
+    <li><h3>Préparer l'examen</h3><p>Questions à choix unique ou multiple, saisies une à une ou importées depuis un fichier Excel. Durée, barème et dates d'ouverture se règlent avant la publication.</p></li>
+    <li><h3>Passer l'examen</h3><p>L'étudiant entre le code d'accès, passe en plein écran et répond. Pas de retour en arrière : chaque réponse est enregistrée au fil de l'eau.</p></li>
+    <li><h3>Publier les notes</h3><p>Les copies sont corrigées automatiquement. L'enseignant consulte les résultats, puis décide quand les étudiants voient leur note.</p></li>
+  </ol>
+</section>
+
+<section class="secure" aria-labelledby="secure-title">
+  <div class="secure-text">
+    <h2 id="secure-title">Une surveillance claire pour tout le monde</h2>
+    <p>Les règles sont affichées avant le début de l'examen. L'étudiant sait exactement ce qui compte comme une violation, et l'enseignant voit tout ce qui s'est passé.</p>
+  </div>
+  <ul class="secure-list">
+    <li>{% include "qcm/_icon.html" with name="fullscreen" %}<div><strong>Plein écran obligatoire</strong><span>Quitter le plein écran, changer d'onglet ou d'application est une violation.</span></div></li>
+    <li>{% include "qcm/_icon.html" with name="admin" %}<div><strong>Un avertissement, puis la clôture</strong><span>La première violation affiche un avertissement. La deuxième clôture la copie.</span></div></li>
+    <li>{% include "qcm/_icon.html" with name="people" %}<div><strong>Filigrane au nom de l'étudiant</strong><span>Son nom et son matricule couvrent l'écran pendant toute l'épreuve.</span></div></li>
+    <li>{% include "qcm/_icon.html" with name="review" %}<div><strong>Tout est journalisé</strong><span>Pertes de focus et redimensionnements sont notés pour l'enseignant, sans pénaliser l'étudiant.</span></div></li>
+  </ul>
+</section>
+
+<section class="roles" aria-labelledby="roles-title">
+  <h2 id="roles-title">Pensé pour chacun</h2>
+  <div class="roles-grid">
+    <article>
+      <h3>Étudiants</h3>
+      <p>Rejoignez vos classes avec un code, retrouvez vos examens à faire et vos notes au même endroit.</p>
+      <a href="{% url 'student_register' %}">Créer un compte étudiant</a>
+    </article>
+    <article>
+      <h3>Enseignants</h3>
+      <p>Créez vos classes, importez vos QCM et suivez les résultats de chaque étudiant. Votre compte est validé par l'administration.</p>
+      <a href="{% url 'student_register' %}?type=teacher">Demander un compte enseignant</a>
+    </article>
+    <article>
+      <h3>Administration</h3>
+      <p>Gérez les comptes et les rôles, validez les enseignants et gardez un journal de chaque opération.</p>
+      <a href="{% url 'login' %}">Se connecter</a>
+    </article>
+  </div>
+</section>
+
+<section class="cta" aria-labelledby="cta-title">
+  <img src="{% static 'img/logo-embleme.webp' %}" alt="" width="132" height="132" loading="lazy">
+  <div>
+    <h2 id="cta-title">Prêt pour votre prochain examen ?</h2>
+    <p>La création d'un compte prend une minute.</p>
+  </div>
+  <a class="btn lg" href="{% url 'student_register' %}">Créer un compte</a>
+</section>
+
+<footer class="site-foot">
+  <span class="brand small-brand">{% include "_brand.html" %}</span>
+  <span>Examens QCM en ligne, surveillés.</span>
+</footer>
+{% endblock %}
