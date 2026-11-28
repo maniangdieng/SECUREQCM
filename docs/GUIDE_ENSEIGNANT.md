@@ -51,11 +51,22 @@ La règle choisie est affichée aux étudiants avant le démarrage et sur chaque
 
 ### Saisir et corriger les questions
 
-**Ajouter une question** : énoncé, réponse unique ou multiple, points (0,1 à 100), 2 à 8 propositions, au moins une
-bonne réponse.
+Tant que l'examen est en brouillon et sans tentative, les questions se modifient directement sur la page de
+l'examen, comme dans Google Forms :
 
-Tant que l'examen est en brouillon et sans tentative, chaque question peut être modifiée (**Modifier**), déplacée
-(**↑**, **↓**) ou supprimée.
+- **Ajouter une question** (bouton **+** à droite de la question sélectionnée, ou en bas de la liste) : la nouvelle
+  question s'ouvre sous la question sélectionnée.
+- Cliquer sur une question l'ouvre en édition : énoncé, type (**Réponse unique** ou **Réponses multiples**), 2 à 8
+  propositions (**Entrée** ajoute une option, **×** en retire une), points (0,1 à 100).
+- **Bonne réponse** : cliquer sur le cercle (réponse unique) ou cocher les cases (réponses multiples) des propositions
+  correctes. Elles s'affichent en vert.
+- **Enregistrement automatique** : pas de bouton Enregistrer. Le haut de la liste indique « Toutes les modifications
+  sont enregistrées » ; une question incomplète (sans énoncé, avec moins de deux propositions ou sans bonne réponse)
+  est signalée et n'est pas enregistrée tant qu'elle ne l'est pas.
+- **Déplacer** : glisser la poignée **⠿** en haut de la carte, ou les flèches **↑ ↓** en bas de la carte.
+  **Dupliquer** et **Supprimer** sont à côté.
+
+Sans JavaScript, la page affiche l'ancien formulaire (**Modifier**, **↑**, **↓**, **Supprimer**).
 
 ### Importer un sujet
 

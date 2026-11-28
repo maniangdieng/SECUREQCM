@@ -52,6 +52,13 @@ urlpatterns = [
     path("teacher/exams/<int:exam_id>/question/<int:question_id>/edit/", views.edit_question, name="edit_question"),
     path("teacher/exams/<int:exam_id>/question/<int:question_id>/move/", views.move_question, name="move_question"),
     path("teacher/exams/<int:exam_id>/question/<int:question_id>/delete/", views.delete_question, name="delete_question"),
+    # Éditeur graphique des questions (JSON)
+    path("teacher/exams/<int:exam_id>/questions/api/save/", views.api_save_question, name="api_save_question"),
+    path("teacher/exams/<int:exam_id>/questions/api/order/", views.api_reorder_questions, name="api_reorder_questions"),
+    path("teacher/exams/<int:exam_id>/questions/api/<int:question_id>/duplicate/", views.api_duplicate_question,
+         name="api_duplicate_question"),
+    path("teacher/exams/<int:exam_id>/questions/api/<int:question_id>/delete/", views.api_delete_question,
+         name="api_delete_question"),
     path("teacher/exams/<int:exam_id>/publish/", views.publish_exam, name="publish_exam"),
     path("teacher/exams/<int:exam_id>/students/import/", views.import_exam_students, name="import_exam_students"),
     path("teacher/exams/<int:exam_id>/students/add/", views.add_exam_student, name="add_exam_student"),

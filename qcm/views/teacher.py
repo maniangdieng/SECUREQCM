@@ -109,17 +109,23 @@ def _parse_exam_window(request):
     return opens_at, closes_at, None
 
 
-def _question_payload(request):
-    """Énoncé, type, barème et propositions envoyés ; mêmes règles à l'ajout et à la modification (#10)."""
-    text = request.POST.get("text", "").strip()
-    kind = request.POST.get("kind", Question.SINGLE)
+def validate_question(text, kind, points, options):
+    """Règles d'une question, communes aux formulaires et à l'éditeur graphique (#10).
+
+    `options` : liste ordonnée de (texte, bonne_réponse). Les propositions vides sont ignorées.
+    Renvoie (données nettoyées, message d'erreur ou None).
+    """
+    text = str(text or "").strip()
+    kind = kind or Question.SINGLE
+    if not isinstance(kind, str):  # JSON : ["x"], {} … (non hachable)
+        kind = ""
     try:
-        points = Decimal(request.POST.get("points", "1"))
+        points = Decimal("1") if points is None else Decimal(str(points).strip().replace(",", "."))
     except (InvalidOperation, TypeError, ValueError):
         points = None
-    options = [(i, t.strip()) for i, t in enumerate(request.POST.getlist("option_text")[:MAX_OPTIONS]) if t.strip()]
-    correct = set(request.POST.getlist("correct"))
-    correct_count = sum(1 for i, _ in options if str(i) in correct)
+    options = [(str(label).strip(), bool(correct)) for label, correct in list(options)[:MAX_OPTIONS]
+               if str(label or "").strip()]
+    correct_count = sum(1 for _, correct in options if correct)
 
     error = None
     if not text:
@@ -136,7 +142,23 @@ def _question_payload(request):
         # Une question à réponse unique s'affiche avec des boutons radio : avec deux
         # bonnes réponses, l'étudiant ne pourrait jamais obtenir les points.
         error = "Une question à réponse unique doit avoir exactement une bonne réponse. Choisissez « Réponses multiples »."
-    return {"text": text, "kind": kind, "points": points, "options": options, "correct": correct}, error
+    return {"text": text, "kind": kind, "points": points, "options": options}, error
+
+
+def _question_payload(request):
+    """Énoncé, type, barème et propositions envoyés par un formulaire classique."""
+    texts = request.POST.getlist("option_text")
+    correct = set(request.POST.getlist("correct"))
+    return validate_question(request.POST.get("text", ""), request.POST.get("kind", Question.SINGLE),
+                             request.POST.get("points", "1"),
+                             [(label, str(i) in correct) for i, label in enumerate(texts)])
+
+
+def write_options(question, options):
+    """Remplace les propositions d'une question par `options` [(texte, bonne_réponse)]."""
+    question.options.all().delete()
+    Option.objects.bulk_create([Option(question=question, text=label[:500], is_correct=correct, position=position)
+                                for position, (label, correct) in enumerate(options, 1)])
 
 
 def _questions_locked(exam):
@@ -389,10 +411,16 @@ def teacher_exam(request, exam_id):
     exam = get_object_or_404(Exam.objects.select_related("classroom"), pk=exam_id)
     if not can_manage_exam(request.user, exam):
         return HttpResponseForbidden()
+    from .question_editor import editor_data  # import local : question_editor importe ce module
+    has_attempts = exam.attempts.exists()
+    editable = not exam.published and not has_attempts
     return render(request, "qcm/teacher_exam.html", {
         "exam": exam,
         "questions": exam.questions.prefetch_related("options").all(),
-        "has_attempts": exam.attempts.exists(),
+        "has_attempts": has_attempts,
+        "editable": editable,
+        "editor_questions": editor_data(exam) if editable else None,
+        "max_options": MAX_OPTIONS,
         "enrollment_count": exam.enrollments.count(),
         "option_slots": range(MAX_OPTIONS),
         "classrooms": manageable_classrooms(request.user).filter(is_archived=False).order_by("name"),
@@ -418,9 +446,8 @@ def add_question(request, exam_id):
         last = exam.questions.aggregate(last=Max("position"))["last"] or 0
         q = Question.objects.create(exam=exam, text=payload["text"], question_type=payload["kind"],
                                     duration_seconds=0, points=payload["points"], position=last + 1)
-        for position, (index, option_text) in enumerate(payload["options"], 1):
-            Option.objects.create(question=q, text=option_text[:500], is_correct=str(index) in payload["correct"],
-                                  position=position)
+        write_options(q, payload["options"])
+        audit(request.user, "Question ajoutée", exam, f"question #{q.pk}")
     messages.success(request, "Question ajoutée.")
     return redirect("teacher_exam", exam_id=exam.id)
 
@@ -451,10 +478,7 @@ def edit_question(request, exam_id, question_id):
         with transaction.atomic():
             question.text, question.question_type, question.points = payload["text"], payload["kind"], payload["points"]
             question.save(update_fields=["text", "question_type", "points"])
-            question.options.all().delete()
-            for position, (index, option_text) in enumerate(payload["options"], 1):
-                Option.objects.create(question=question, text=option_text[:500],
-                                      is_correct=str(index) in payload["correct"], position=position)
+            write_options(question, payload["options"])
             audit(request.user, "Question modifiée", exam, f"question n° {question.position}")
         messages.success(request, "Question mise à jour.")
         return redirect("teacher_exam", exam_id=exam.id)
@@ -489,6 +513,7 @@ def move_question(request, exam_id, question_id):
             if item.position != position:
                 item.position = position
                 item.save(update_fields=["position"])
+        audit(request.user, "Ordre des questions modifié", exam)
     messages.success(request, "Ordre des questions mis à jour.")
     return redirect("teacher_exam", exam_id=exam.id)
 
@@ -506,6 +531,7 @@ def delete_question(request, exam_id, question_id):
     if Attempt.objects.filter(exam=exam).exists():
         messages.error(request, "Suppression impossible : cet examen possède déjà des tentatives. Créez un nouveau brouillon pour modifier les questions.")
         return redirect("teacher_exam", exam_id=exam.id)
+    audit(request.user, "Question supprimée", exam, f"question #{question.pk} : {question.text[:80]}")
     question.delete()
     for position, item in enumerate(exam.questions.order_by("position", "id"), 1):
         if item.position != position:

@@ -550,6 +550,90 @@ body.exam-mode { background: #f1f3f4; }
 .your-grade { font-size: 1.1rem; margin: 4px 0 12px; }
 .your-grade strong { font-size: 1.8rem; font-weight: 400; }
 
+/* Éditeur graphique des questions (façon Google Forms) — static/js/question_editor.js */
+.qe { position: relative; padding-right: 64px; }
+.qe-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.qe-head h2 { margin: 0; }
+.qe-summary { margin: 4px 0 0; color: var(--muted); font-size: .875rem; }
+.qe-status { margin: 0; font-size: .8125rem; color: var(--muted); }
+.qe-status.is-warn { color: var(--warning); }
+.qe-status.is-error { color: var(--danger); font-weight: 500; }
+.qe-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.qe-empty { padding: 32px; text-align: center; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+.qe-card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 8px 24px 16px; transition: box-shadow .15s; }
+.qe-card.is-active { box-shadow: var(--shadow-lg); border-color: transparent; }
+.qe-card.is-active::before { content: ""; position: absolute; left: -1px; top: -1px; bottom: -1px; width: 6px;
+  background: var(--accent); border-radius: var(--radius) 0 0 var(--radius); }
+.qe-card.has-problem { border-color: var(--danger); }
+.qe-card.is-dragging { opacity: .5; }
+.qe-drag { display: flex; justify-content: center; height: 20px; color: var(--line-strong); cursor: grab; }
+.qe-drag .qe-ico { width: 20px; height: 20px; transform: rotate(90deg); fill: currentColor; }
+.qe-card:hover .qe-drag, .qe-card.is-active .qe-drag { color: var(--muted); }
+.qe-ico { width: 20px; height: 20px; fill: currentColor; flex: none; }
+
+.qe-view { cursor: pointer; border-radius: var(--radius-sm); outline-offset: 4px; }
+.qe-view-head { display: flex; gap: 16px; justify-content: space-between; align-items: baseline; }
+.qe-view-text { font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; }
+.qe-pts { color: var(--muted); font-size: .8125rem; white-space: nowrap; }
+.qe-view-options { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.qe-view-options li { display: flex; align-items: center; gap: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.qe-view-options li.is-correct { color: var(--success); font-weight: 500; }
+.qe-good { font-size: .75rem; background: var(--success-soft); color: var(--success); padding: 1px 8px; border-radius: 999px; margin-left: auto; white-space: nowrap; }
+
+.qe-mark { width: 20px; height: 20px; flex: none; border: 2px solid var(--muted); background: var(--surface); padding: 0; position: relative; }
+.qe-mark.radio { border-radius: 50%; }
+.qe-mark.box { border-radius: 3px; }
+button.qe-mark { cursor: pointer; }
+button.qe-mark:hover { border-color: var(--accent); box-shadow: 0 0 0 8px var(--hover); }
+.qe-mark.on { border-color: var(--success); }
+.qe-mark.radio.on::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--success); }
+.qe-mark.box.on { background: var(--success); }
+.qe-mark.box.on::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+.qe-edit-head { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.qe-text { flex: 1 1 320px; min-height: 56px; resize: none; overflow: hidden; font: inherit; font-size: 1rem; padding: 16px;
+  background: var(--surface-2); border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 4px 4px 0 0; }
+.qe-text:focus { outline: none; border-bottom: 2px solid var(--accent); }
+.qe-kind { flex: 0 0 auto; width: auto; min-width: 220px; }
+.qe-options { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 4px; }
+.qe-option { display: flex; align-items: center; gap: 12px; }
+.qe-opt-text { flex: 1; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 8px 2px; background: transparent; font: inherit; }
+.qe-opt-text:hover { border-bottom-color: var(--line); }
+.qe-opt-text:focus { outline: none; border-bottom: 2px solid var(--accent); }
+.qe-option.is-correct .qe-opt-text { color: var(--success); font-weight: 500; }
+.qe-add-option-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.qe-add-option-row .qe-mark { opacity: .5; }
+.qe-add-option { border: 0; background: none; color: var(--muted); font: inherit; padding: 8px 2px; cursor: pointer; }
+.qe-add-option:hover:not(:disabled) { color: var(--accent); text-decoration: underline; }
+.qe-help { margin: 8px 0 0; font-size: .8125rem; color: var(--muted); }
+.qe-foot { display: flex; align-items: center; gap: 4px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.qe-points { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: .875rem; }
+.qe-points-input { width: 84px; }
+.qe-foot-sep { flex: 1; }
+.qe-icon { width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--muted);
+  display: inline-grid; place-items: center; cursor: pointer; }
+.qe-icon:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.qe-icon:disabled { opacity: .35; cursor: default; }
+.qe-opt-del { width: 36px; height: 36px; }
+.qe-msg { margin: 8px 0 0; font-size: .8125rem; }
+.qe-msg:empty { display: none; }
+.qe-msg.is-warn { color: var(--warning); }
+.qe-msg.is-error { color: var(--danger); }
+.qe-add-bottom { margin-top: 16px; }
+.qe-fab { position: absolute; right: 0; top: 0; transition: top .2s; }
+.qe-fab-btn { width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  color: var(--accent); box-shadow: var(--shadow); display: grid; place-items: center; cursor: pointer; }
+.qe-fab-btn:hover { background: var(--accent-soft); }
+.qe-fab-btn .qe-ico { width: 24px; height: 24px; }
+@media (max-width: 700px) {
+  .qe { padding-right: 0; }
+  .qe-fab { position: fixed; right: 16px; bottom: 16px; top: auto !important; z-index: 20; }
+  .qe-card { padding: 8px 16px 12px; }
+  .qe-kind { min-width: 0; width: 100%; }
+}
+
 /* Inscription : choix du type de compte (Étudiant / Enseignant) */
 .account-type { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border: 0; padding: 0; margin: 0 0 16px; }
 .account-type legend { font-weight: 600; margin-bottom: 8px; }
