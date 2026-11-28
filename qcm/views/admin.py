@@ -15,7 +15,7 @@ from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -78,9 +78,12 @@ def admin_teacher_request(request, user_id):
     """Valide ou refuse une demande de compte enseignant faite à l'inscription."""
     if not is_admin(request.user):
         return HttpResponseForbidden()
+    decision = request.POST.get("decision")
+    if decision not in ("approve", "reject"):  # sans décision explicite, pas de refus (qui désactive le compte)
+        return HttpResponseBadRequest("Décision inconnue.")
     target = get_object_or_404(User.objects.select_related("profile"), pk=user_id, profile__role="PENDING")
     profile = target.profile
-    if request.POST.get("decision") == "approve":
+    if decision == "approve":
         profile.role = "TEACHER"
         profile.save(update_fields=["role"])
         audit(request.user, "Demande enseignant acceptée", target)

@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.shortcuts import render, redirect
 from django.urls import reverse
 
@@ -80,6 +81,11 @@ def student_register(request):
         required = [first_name, last_name, username, password] + ([email] if is_teacher else [student_number, study_level])
         if not all(required):
             errors.append("Tous les champs obligatoires doivent être remplis.")
+        if email:
+            try:
+                validate_email(email)
+            except ValidationError:
+                errors.append("Adresse e-mail invalide.")
         if not is_teacher and study_level not in dict(Profile.LEVEL_CHOICES):
             errors.append("Sélectionnez un niveau d'études valide.")
         if User.objects.filter(username__iexact=username).exists():

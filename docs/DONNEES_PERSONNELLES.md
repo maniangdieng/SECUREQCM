@@ -8,7 +8,7 @@
 
 | Données | Contenu | Personnes |
 |---|---|---|
-| Compte | identifiant, prénom, nom, e-mail (facultatif à l'inscription), mot de passe **haché**, date de création, dernière connexion, rôle | toutes |
+| Compte | identifiant, prénom, nom, e-mail (facultatif pour un étudiant, obligatoire pour une demande de compte enseignant), mot de passe **haché**, date de création, dernière connexion, rôle | toutes |
 | Scolarité | matricule, niveau, classes rejointes et rôle dans la classe | étudiants, enseignants |
 | Inscriptions aux examens | examen, origine, code validé, date | étudiants |
 | Copies | début, fin, statut, ordre des questions, barème, réponses et leur date, score | étudiants |
@@ -102,7 +102,7 @@ Points à examiner avec un juriste :
 > - **Destinataires** : vos enseignants, l'administration, `[autres : hébergeur, jury…]`. Les autres étudiants de vos
 >   classes voient votre nom.
 > - **Réponses obligatoires** : identité, matricule, niveau et identifiant sont nécessaires pour créer le compte et
->   passer un examen. L'e-mail est facultatif.
+>   passer un examen. L'e-mail est facultatif pour un étudiant ; il est obligatoire pour demander un compte enseignant.
 > - **Conservation** : `[durées]`.
 > - **Transferts à l'étranger** : `[aucun / préciser]`.
 > - **Vos droits** : accès, rectification, opposition et suppression dans les conditions prévues par la loi, y compris

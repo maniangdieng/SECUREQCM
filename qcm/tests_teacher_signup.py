@@ -76,6 +76,30 @@ class TeacherSignupTests(TestCase):
         self.assertEqual(user.profile.role, "STUDENT")
         self.assertTrue(AuditLog.objects.filter(action="Demande enseignant refusée").exists())
 
+    def test_missing_or_unknown_decision_does_not_reject(self):
+        signup(self.client)
+        user = User.objects.get(username="awa.ndiaye")
+        self.client.force_login(self.admin)
+        for data in ({}, {"decision": "peut-être"}):
+            response = self.client.post(f"/dashboard/admin/users/{user.id}/teacher-request/", data)
+            self.assertEqual(response.status_code, 400)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.profile.role, "PENDING")
+
+    def test_pending_todo_pages_do_not_loop(self):
+        signup(self.client)
+        for url in ("/teacher/to-review/", "/student/todo/"):
+            self.assertEqual(self.client.get(url, follow=True).redirect_chain[-1][0], "/accounts/pending/")
+
+    def test_email_is_checked_server_side(self):
+        for bad in ("pas-une-adresse", "awa@univ"):
+            signup(self.client, email=bad, username=f"u{len(bad)}")
+            self.assertFalse(User.objects.filter(username=f"u{len(bad)}").exists(), bad)
+        signup(self.client, account_type="STUDENT", email="pas-une-adresse", username="etu.bad",
+               student_number="M999", study_level="L1")
+        self.assertFalse(User.objects.filter(username="etu.bad").exists())
+
     def test_only_admin_decides_and_only_pending_requests(self):
         signup(self.client)
         user = User.objects.get(username="awa.ndiaye")

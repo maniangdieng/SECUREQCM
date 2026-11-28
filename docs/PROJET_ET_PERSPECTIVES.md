@@ -29,7 +29,7 @@ Super-administrateur
 |---|---|---|
 | **Super-admin** | `python manage.py createsuperuser` | Tout. C'est le seul à pouvoir nommer ou révoquer un administrateur. Il ne peut pas être rétrogradé ni désactivé depuis l'application. |
 | **Admin** | Nommé par le super-admin (ou compte `is_staff`) | Gestion des rôles enseignant/étudiant, activation et désactivation des comptes, archivage des classes, cycle de vie des examens |
-| **Enseignant** | Un admin lui attribue le rôle depuis *Comptes* | Crée ses classes, ajoute des co-enseignants et des étudiants (par matricule), crée ou importe des examens, publie, consulte les résultats |
+| **Enseignant** | Inscription « Enseignant » (`/accounts/register/?type=teacher`) validée par un admin, ou rôle attribué par un admin depuis *Comptes* | Crée ses classes, ajoute des co-enseignants et des étudiants (par matricule), crée ou importe des examens, publie, consulte les résultats |
 | **Étudiant** | Inscription libre (`/accounts/register/`) | Rejoint des classes par code, passe les examens auxquels il est affecté |
 
 ### 1.2 Règles métier conservées de la version du professeur
