@@ -332,6 +332,11 @@
       error.network = true;
       throw error;
     }
+    if (response.status >= 500) {  // redémarrage du site (déploiement) : passager, on réessaie
+      const error = new Error("Serveur indisponible : nouvel essai automatique dans quelques secondes.");
+      error.network = true;
+      throw error;
+    }
     const json = (response.headers.get("content-type") || "").includes("application/json");
     const data = json ? await response.json().catch(() => ({})) : {};
     if (!json || response.redirected) throw new Error("Session expirée : reconnectez-vous dans un autre onglet, puis modifiez la question.");
@@ -364,6 +369,9 @@
     const body = { text: q.text, kind: q.kind, points: String(q.points), options: q.options };
     if (q.id) body.id = q.id;
     else {
+      // Fixé une fois pour toutes : si la réponse d'une création se perd, le nouvel essai porte le même
+      // identifiant et le serveur met à jour la question déjà créée au lieu d'en créer une seconde.
+      body.client = q.client ||= Math.random().toString(36).slice(2) + Date.now().toString(36);
       const index = questions.indexOf(q);
       const before = questions.slice(0, index).reverse().find((other) => other.id);
       if (before) body.after = before.id;
@@ -451,10 +459,17 @@
     try { await post(urlFor(root.dataset.deleteUrl, q.id)); }
     catch (e) {  // remise en place : la suppression a échoué, la question est toujours dans l'examen
       questions.splice(Math.min(q.removedAt, questions.length), 0, q);
-      q.status = "error"; q.error = `Suppression non effectuée : ${e.message}`;
+      q.status = "error"; q.error = `Suppression non effectuée : ${oneShot(e, "supprimez-la de nouveau pour réessayer")}`;
       renderAll();
     }
     refreshHeader();
+    // Un envoi d'ordre parti pendant la suppression a vu deux listes différentes et abandonné : on le relance.
+    await syncOrder();
+  }
+
+  // Suppression et duplication ne réessaient pas seules : pas de promesse de « nouvel essai automatique ».
+  function oneShot(e, advice) {
+    return e.network ? `serveur injoignable, ${advice}.` : e.message;
   }
 
   async function duplicate(q) {
@@ -462,7 +477,13 @@
     let copy;
     if (q.id && q.status === "saved" && snapshot(q) === q.savedSnap) {
       try { copy = fromServer((await post(urlFor(root.dataset.duplicateUrl, q.id))).question); }
-      catch (e) { q.status = "error"; q.error = e.message; paintMessage(q); refreshHeader(); return; }
+      catch (e) {
+        // Réponse perdue : la copie a pu être créée sans apparaître ici ; seul un rechargement le dira.
+        q.status = "error";
+        q.error = e.network ? "Duplication incertaine (serveur injoignable) : rechargez la page pour vérifier avant de réessayer."
+          : `Duplication non effectuée : ${e.message}`;
+        paintMessage(q); refreshHeader(); return;
+      }
     } else {
       copy = blank();
       Object.assign(copy, { text: q.text, kind: q.kind, points: q.points, options: q.options.map((o) => ({ ...o })) });

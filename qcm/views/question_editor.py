@@ -96,9 +96,18 @@ def api_save_question(request, exam_id):
     if error:
         return _error(error)
 
+    # Création renvoyée (réponse perdue après traitement) : `client`, choisi par la page, désigne la
+    # question déjà créée, qui est alors mise à jour au lieu d'être créée en double.
+    # Limite : la correspondance est en session, une reconnexion entre les deux envois la fait perdre.
+    client = data.get("client")
+    creation = f"qe:{exam.pk}:{client[:40]}" if isinstance(client, str) and client else None
+    question_id = data.get("id")
+    if question_id is None and creation:
+        question_id = request.session.get(creation)
+
     with transaction.atomic():
-        if data.get("id") is not None:
-            question = _question(exam, data["id"])
+        if question_id is not None:
+            question = _question(exam, question_id)
             if question is None:
                 return _error("Question introuvable : rechargez la page.", 404)
             before = question_data(question)
@@ -124,6 +133,8 @@ def api_save_question(request, exam_id):
             write_options(question, payload["options"])
             _renumber(exam)
             audit(request.user, "Question ajoutée", exam, f"question #{question.pk}")
+            if creation:
+                request.session[creation] = question.pk
     return JsonResponse({"question": question_data(question), "order": _order(exam)})
 
 

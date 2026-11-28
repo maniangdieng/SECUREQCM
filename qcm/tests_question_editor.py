@@ -113,6 +113,27 @@ class QuestionEditorTests(TestCase):
         self.assertEqual(self.order(), ["Q1", "Q2", "Q3"])
         self.assertEqual(list(self.exam.questions.values_list("position", flat=True)), [1, 2, 3])
 
+    def test_resent_creation_updates_instead_of_duplicating(self):
+        """Réponse de la création perdue : le nouvel essai, même `client` sans `id`, ne crée pas de double."""
+        first = self.add("Q1", client="abc123")
+        again = self.add("Q1 corrigée", client="abc123")
+        self.assertEqual(again["id"], first["id"])
+        self.assertEqual(self.order(), ["Q1 corrigée"])
+        other = self.add("Q2", client="def456")  # autre question de la page : bien créée
+        self.assertNotEqual(other["id"], first["id"])
+        self.assertEqual(self.order(), ["Q1 corrigée", "Q2"])
+
+    def test_creation_key_is_per_exam_and_odd_values_are_ignored(self):
+        self.add("Q1", client="abc123")
+        other_exam = Exam.objects.create(title="Autre", teacher=self.teacher, audience_mode="LEVEL", target_level="L1")
+        response = self.client.post(f"/teacher/exams/{other_exam.id}/questions/api/save/",
+                                    json.dumps(payload(text="Ailleurs", client="abc123")), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(other_exam.questions.count(), 1)
+        for odd in (12, ["x"], {"a": 1}, ""):
+            self.assertEqual(self.post("save/", payload(text="Q", client=odd)).status_code, 200)
+        self.assertEqual(self.exam.questions.count(), 5)
+
     # ---- dupliquer, supprimer, réordonner
     def test_duplicate_inserts_copy_after_source(self):
         q1 = self.add("Q1", kind="MULTIPLE", options=[{"text": "A", "correct": True}, {"text": "B", "correct": True}])
