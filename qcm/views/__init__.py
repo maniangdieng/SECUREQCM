@@ -2,6 +2,7 @@
 Vues de Secure QCM, découpées par espace fonctionnel :
 
 - auth.py        connexion unifiée, inscription étudiant, profil
+- google.py      connexion et inscription avec Google
 - admin.py       espace (super-)administrateur
 - classrooms.py  classes façon Google Classroom
 - teacher.py     examens et questions côté enseignant
@@ -11,6 +12,8 @@ Vues de Secure QCM, découpées par espace fonctionnel :
 - results.py     résultats, copies, export CSV
 """
 from .auth import UnifiedLoginView, home, student_register, teacher_pending, profile  # noqa: F401
+from .google import (google_login, google_callback, google_signup, google_complete, google_link,  # noqa: F401
+                     google_unlink, password_set)
 from .admin import (admin_dashboard, admin_users, admin_set_role, admin_toggle_active, admin_teacher_request,  # noqa: F401
                     admin_delete_exam, admin_normal_delete_exam, admin_create_user, admin_journal)
 from .classrooms import (create_classroom, classroom_detail, update_classroom, regenerate_class_code,  # noqa: F401

@@ -57,6 +57,44 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 - **Récupérer une sauvegarde** : voir [SAUVEGARDE.md](SAUVEGARDE.md). Les sauvegardes restent sur le même disque :
   les copier ailleurs (S3, autre machine) avant un vrai examen.
 
+## Connexion avec Google (facultatif)
+
+Sans clés, le bouton **Continuer avec Google** est caché et les adresses correspondantes répondent 404.
+
+1. Sur <https://console.cloud.google.com>, créer un projet, ouvrir **Google Auth Platform** et cliquer sur
+   **Get started** : nom de l'application, adresse d'assistance, audience **External**, adresse de contact.
+2. **Clients → Create client**, type **Web application**. Dans **Authorized redirect URIs**, saisir l'adresse du site
+   suivie de `/accounts/google/login/callback/`, barre finale comprise :
+   `https://<ip-avec-tirets>.sslip.io/accounts/google/login/callback/`.
+3. Copier aussitôt l'identifiant client et le code secret : Google n'affiche le secret qu'à la création.
+4. **Branding** : renseigner la page d'accueil (`https://<ip-avec-tirets>.sslip.io/`) et les règles de
+   confidentialité (`https://<ip-avec-tirets>.sslip.io/confidentialite/`), puis **Audience → Publish app**, pour que
+   tous les comptes Google soient acceptés. La page de confidentialité doit déjà être en ligne.
+5. Sur le serveur (Session Manager, hors période d'examen), ajouter à `/opt/secureqcm/.env`
+   ```
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   ```
+   puis lancer `cd /opt/secureqcm && sudo bash deploy/aws/deploy.sh`.
+
+Le secret ne va ni dans Git, ni dans une issue, ni sur une capture d'écran. S'il fuit, en générer un nouveau dans
+**Clients** et désactiver l'ancien. L'erreur `redirect_uri_mismatch` signale que l'adresse saisie à l'étape 2 diffère
+de celle du site. Derrière un autre proxy que Caddy, vérifier `DJANGO_SECURE_COOKIES=1` et l'en-tête
+`X-Forwarded-Proto`.
+
+**Avant de retirer les clés** : les comptes créés avec Google sans mot de passe ne pourront plus se connecter, et
+**Mot de passe oublié ?** ne leur envoie rien. Les lister :
+
+```bash
+cd /opt/secureqcm && sudo docker compose exec -T web python manage.py shell -c \
+  "from django.contrib.auth.models import User; print([u.username for u in User.objects.all() if not u.has_usable_password()])"
+```
+
+Leur demander de définir un mot de passe depuis **Mon profil**, ou le faire avec `python manage.py changepassword`.
+
+**Essai en local** : créer un second client, avec `http://localhost:8000/accounts/google/login/callback/`, mettre ses
+deux valeurs dans le fichier `.env` local, puis ouvrir le site par `http://localhost:8000` (et non `127.0.0.1`).
+
 ## À faire avant un vrai examen
 
 - **Données personnelles** : le serveur est en Suède (Stockholm). Examiner le transfert hors du Sénégal (loi 2008-12,

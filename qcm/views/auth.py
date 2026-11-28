@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
@@ -10,10 +11,13 @@ from django.core.validators import validate_email
 from django.shortcuts import render, redirect
 from django.urls import reverse
 
+from ..google import google_account, recent_google_sign_in
 from ..models import Profile
-from ..permissions import role
+from ..permissions import is_admin, role
 from ..services import audit, enroll_student_in_level_exams
 
+STUDENT_WELCOME = ("Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code "
+                   "donné par votre enseignant.")
 DASHBOARD_BY_ROLE = {"ADMIN": "admin_dashboard", "TEACHER": "teacher_dashboard", "STUDENT": "student_dashboard",
                      "PENDING": "teacher_pending"}
 
@@ -48,6 +52,20 @@ class UnifiedLoginView(LoginView):
 
     def get_default_redirect_url(self):
         return self.get_success_url()
+
+
+def set_up_new_account(user, is_teacher, student_number="", study_level=""):
+    """Profil d'un compte qui vient de s'inscrire, avec le formulaire ou avec Google."""
+    profile = user.profile
+    profile.role = "PENDING" if is_teacher else "STUDENT"
+    profile.student_number = student_number
+    profile.study_level = study_level
+    profile.save()
+    if is_teacher:
+        audit(user, "Demande de compte enseignant", user)
+    else:
+        # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
+        enroll_student_in_level_exams(user)
 
 
 def home(request):
@@ -104,19 +122,12 @@ def student_register(request):
         else:
             user = User.objects.create_user(username=username, password=password, email=email,
                                             first_name=first_name, last_name=last_name)
-            profile = user.profile
-            profile.role = "PENDING" if is_teacher else "STUDENT"
-            profile.student_number = student_number
-            profile.study_level = study_level
-            profile.save()
+            set_up_new_account(user, is_teacher, student_number, study_level)
             # Plusieurs backends sont configurés (django-axes) : préciser lequel a authentifié.
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             if is_teacher:
-                audit(user, "Demande de compte enseignant", user)
                 return redirect("teacher_pending")
-            # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
-            enroll_student_in_level_exams(user)
-            messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
+            messages.success(request, STUDENT_WELCOME)
             return redirect("student_dashboard")
     return render(request, "registration/register.html", {"levels": Profile.LEVEL_CHOICES, "form_data": form_data})
 
@@ -131,9 +142,15 @@ def teacher_pending(request):
 
 @login_required
 def profile(request):
-    form = EmailForm(request.POST or None, instance=User.objects.get(pk=request.user.pk))
-    if request.method == "POST" and form.is_valid():
+    user = User.objects.get(pk=request.user.pk)
+    # Compte créé avec Google : l'adresse reste celle de Google tant qu'aucun mot de passe n'existe.
+    form = EmailForm(request.POST or None, instance=user) if user.has_usable_password() else None
+    if request.method == "POST" and form and form.is_valid():
         form.save()
         messages.success(request, "Votre adresse e-mail a été enregistrée.")
         return redirect("profile")
-    return render(request, "registration/profile.html", {"form": form})
+    context = {"form": form}
+    if settings.GOOGLE_LOGIN_ENABLED and not is_admin(user):
+        context.update(show_google=True, google_account=google_account(user),
+                       can_set_password=recent_google_sign_in(request))
+    return render(request, "registration/profile.html", context)

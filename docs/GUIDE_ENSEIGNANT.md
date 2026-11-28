@@ -7,6 +7,11 @@ Deux façons d'obtenir un compte enseignant :
   directement à l'espace enseignant.
 - **Demander à l'administration** de créer le compte (**Comptes → Créer un compte enseignant**).
 
+Si la connexion avec Google est activée, on peut aussi s'inscrire par **Continuer avec Google**, puis choisir
+**Enseignant** sur la page **Compléter mon profil** ; la validation par l'administration est la même. Un compte
+existant se lie à Google depuis **Mon profil** (mot de passe actuel demandé). Sur un ordinateur partagé, se
+déconnecter de Secure QCM et de Google.
+
 ## Les classes
 
 - **Créer une classe** (bouton **+**) : nom, section, matière, niveau, couleur. Un **code de classe** (7 caractères)

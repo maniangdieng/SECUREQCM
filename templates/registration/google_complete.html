@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Compléter mon profil{% endblock %}
+{% block appbar %}{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block content %}
+<div class="card wide">
+  <h1>Compléter mon profil</h1>
+  <p class="muted">Votre matricule et votre niveau d'études sont nécessaires pour accéder à vos classes et à vos examens.</p>
+  {% include "registration/_form_errors.html" %}
+  <form method="post">
+    {% csrf_token %}
+    {% include "registration/_student_fields.html" %}
+    <button class="btn lg block" type="submit">Enregistrer</button>
+  </form>
+  <form method="post" action="{% url 'logout' %}">
+    {% csrf_token %}
+    <button class="btn text block" type="submit">Se déconnecter</button>
+  </form>
+  <p class="center small" style="margin-top:12px"><a href="{% url 'privacy' %}" target="_blank">Confidentialité</a></p>
+</div>
+{% endblock %}

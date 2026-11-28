@@ -1,0 +1,18 @@
+<script>
+(function () {
+  // Affiche les champs du type de compte choisi ; les champs masqués ne sont ni obligatoires ni envoyés.
+  const form = document.getElementById("registerForm");
+  function update() {
+    const type = form.querySelector("input[name=account_type]:checked").value;
+    form.querySelectorAll("[data-for]").forEach(function (el) {
+      const on = el.dataset.for === type;
+      el.hidden = !on;
+      el.querySelectorAll("input, select").forEach(function (f) { f.disabled = !on; });
+    });
+    const email = form.querySelector("input[name=email]");
+    if (email) email.required = type === "TEACHER";
+  }
+  form.addEventListener("change", function (e) { if (e.target.name === "account_type") update(); });
+  update();
+})();
+</script>

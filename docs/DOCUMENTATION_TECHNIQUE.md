@@ -6,8 +6,8 @@ Contexte, règles métier et reste à faire : [PROJET_ET_PERSPECTIVES.md](PROJET
 
 Django 5 (rendu côté serveur, un peu de JavaScript sans bibliothèque), SQLite en développement, PostgreSQL 16 et
 Gunicorn en production (Docker Compose), fichiers statiques servis par WhiteNoise, Caddy pour [HTTPS](HTTPS.md).
-Import et export : `pypdf`, `python-docx`, `openpyxl`. Blocage des connexions : `django-axes`. Dépendances :
-[`requirements.txt`](../requirements.txt).
+Import et export : `pypdf`, `python-docx`, `openpyxl`. Blocage des connexions : `django-axes`. Connexion avec
+Google : `django-allauth`. Dépendances : [`requirements.txt`](../requirements.txt).
 
 ## Organisation du code
 
@@ -17,10 +17,11 @@ qcm/
   models.py           données
   permissions.py      toutes les règles d'accès
   services.py         logique partagée : inscriptions, échéances, notation, résultats, journal
-  forms.py            création de compte
+  forms.py            création de compte et profil des comptes Google
   importers.py        lecture des sujets (PDF, Word, Excel, JSON)
   auth_backends.py    blocage des connexions ; client_ip.py : adresse IP derrière le proxy
-  views/              admin, auth, classrooms, teacher, imports, student, attempts, results, common
+  google.py           connexion avec Google : qui peut entrer, ce qui est conservé, profil à compléter
+  views/              admin, auth, google, classrooms, teacher, imports, student, attempts, results, common
   management/commands close_expired_attempts, import_qcm, seed_demo
   migrations/
   tests*.py
@@ -59,8 +60,32 @@ AuditLog (qui, quoi, sur quel objet)
 | Étudiant | rôle `STUDENT` (par défaut) |
 
 Un examen est géré par l'administration, son auteur, ou le propriétaire et les enseignants de sa classe
-(`can_manage_exam`) ; les mêmes personnes peuvent autoriser une reprise. La connexion est unique pour tous les rôles
-et ignore le paramètre `?next=` : après connexion, chacun arrive sur son tableau de bord.
+(`can_manage_exam`) ; les mêmes personnes peuvent autoriser une reprise. La page de connexion est unique pour tous les
+rôles et ignore le paramètre `?next=` : après connexion, chacun arrive sur son tableau de bord.
+
+## Connexion avec Google
+
+Facultative : sans `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET`, le bouton est caché et les routes ci-dessous répondent
+404. `django-allauth` fait l'échange avec Google (code d'autorisation, PKCE) ; ses autres pages ne sont pas ouvertes,
+seules les adresses de `qcm/urls.py` existent.
+
+| Route (`/accounts/…`) | Rôle |
+|---|---|
+| `google/login/` | départ vers Google (POST) |
+| `google/login/callback/` | retour de Google ; c'est l'adresse à déclarer dans la console Google |
+| `google/signup/` | « Compléter mon profil » ; rien n'est créé avant sa validation |
+| `google/complete/` | matricule ou niveau manquant d'un étudiant connecté avec Google |
+| `google/link/`, `google/unlink/` | lier (mot de passe actuel demandé) et dissocier |
+| `password/set/` | premier mot de passe, dans les 5 minutes qui suivent une connexion Google |
+
+Règles à conserver :
+
+- Un compte est retrouvé par son identifiant Google, **jamais par l'adresse e-mail** : une adresse identique ne lie rien.
+- Les comptes d'administration n'entrent pas par Google, et un compte sans mot de passe ne peut pas devenir
+  administrateur.
+- Le compte lié ne garde que l'adresse e-mail ; le jeton d'accès est écarté dès le retour de Google.
+- La page de retour est choisie par l'application : `?next=` est ignoré.
+- `tests_google.py` ne simule que l'échange du code avec Google.
 
 ## Passation d'un examen
 
@@ -106,6 +131,7 @@ Variables d'environnement (voir [`.env.example`](../.env.example)) :
 | `POSTGRES_HOST` | présent : PostgreSQL ; absent : SQLite | absent |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` | connexion PostgreSQL | port `5432` |
 | `COMPOSE_FILE`, `SITE_ADDRESS`, `HTTPS_PORT`, `HTTP_PORT` | HTTPS, voir [HTTPS.md](HTTPS.md) | |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | les deux présents : [connexion avec Google](DEPLOIEMENT_AWS.md#connexion-avec-google-facultatif) | vides |
 | `GUNICORN_WORKERS` | nombre de processus Gunicorn (≈ 2 × cœurs + 1) | `3` |
 | `GUNICORN_CMD_ARGS` | autres options Gunicorn ; `--workers` y est ignoré (la commande l'emporte) | |
 

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Confidentialité{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Confidentialité</h1>
+  <p>Cette page indique ce que Secure QCM, une application d'examens QCM organisée en classes, enregistre sur vous,
+    qui peut le voir et comment demander une correction ou une suppression.</p>
+
+  <h2>Données enregistrées</h2>
+  <ul>
+    <li>Votre compte : identifiant, prénom, nom, adresse e-mail (facultative pour un étudiant, obligatoire pour une
+      demande de compte enseignant), rôle et mot de passe s'il est défini. Le mot de passe est haché, jamais
+      enregistré en clair.</li>
+    <li>Pour les étudiants : matricule, niveau d'études, classes, inscriptions aux examens, réponses et notes.</li>
+    <li>Pendant un examen : changements d'onglet, sorties du plein écran, pertes de focus et redimensionnements de la
+      fenêtre.</li>
+    <li>Journaux : les opérations faites par les enseignants et l'administration ; les connexions et les essais de
+      connexion, avec l'identifiant saisi, l'adresse IP, le navigateur et la date.</li>
+  </ul>
+  <p>Le site utilise des cookies techniques, nécessaires à la connexion et à la protection des formulaires. Il n'utilise
+    ni mesure d'audience, ni publicité, ni caméra, ni micro.</p>
+
+  <h2>Connexion avec Google (facultative)</h2>
+  <p>L'application demande à Google seulement votre nom et votre adresse e-mail. Elle n'accède ni à vos messages, ni à
+    vos fichiers, ni à vos contacts.</p>
+  <ul>
+    <li>Votre nom préremplit le formulaire de création du compte, et vous pouvez le corriger.</li>
+    <li>L'application garde l'identifiant de votre compte Google, votre adresse e-mail et les dates de liaison et de
+      dernière connexion. Elle ne garde ni votre photo, ni jeton d'accès.</li>
+    <li>Ces informations servent uniquement à créer votre compte et à vous reconnaître quand vous vous connectez.</li>
+    <li>Vous pouvez délier Google depuis « Mon profil », après avoir défini un mot de passe.</li>
+  </ul>
+  <p>Google sait que vous vous connectez à ce site.</p>
+
+  <h2>Qui peut voir vos données</h2>
+  <ul>
+    <li>Vos enseignants voient les membres de leurs classes, avec matricule et niveau, ainsi que les copies, les notes
+      et les journaux de leurs examens.</li>
+    <li>Les autres étudiants de vos classes voient votre nom.</li>
+    <li>L'administration voit les comptes, les classes, les examens, les copies et les journaux.</li>
+    <li>Les personnes qui administrent le serveur ont accès à l'ensemble des données.</li>
+  </ul>
+  <p>L'application ne vend aucune donnée.</p>
+
+  <h2>Hébergement et conservation</h2>
+  <p>Le site est hébergé chez Amazon Web Services, à Stockholm (Suède). Une sauvegarde est faite chaque nuit sur le
+    serveur et gardée 14 jours. Les comptes et les copies d'examen ne sont pas supprimés automatiquement.</p>
+
+  <h2>Vos droits</h2>
+  <p>Pour consulter, corriger ou faire supprimer vos données, adressez-vous à votre enseignant, à l'administration de
+    la plateforme ou à l'adresse d'assistance affichée par Google sur son écran de connexion. La suppression d'un compte
+    qui a des copies d'examen demande une intervention technique. Vous pouvez aussi saisir la Commission de protection
+    des données personnelles (CDP) du Sénégal.</p>
+</div>
+{% endblock %}
