@@ -53,7 +53,8 @@ def student_dashboard(request):
 def student_todo(request):
     """Page « À faire » : tous les examens de l'étudiant, attribués ou terminés."""
     if role(request.user) != "STUDENT":
-        return redirect("teacher_todo")
+        # Compte enseignant en attente : ni l'une ni l'autre page « À faire » (sinon les deux se renvoient l'une vers l'autre).
+        return redirect("home" if role(request.user) == "PENDING" else "teacher_todo")
     close_expired_attempts(Attempt.objects.filter(student=request.user))
     todo, done = _split_todo(annotate_exams_for_student(request.user, visible_exams_for_student(request.user)))
     tab = "termines" if request.GET.get("tab") == "termines" else "attribues"

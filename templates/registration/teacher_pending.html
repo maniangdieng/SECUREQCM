@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Demande en attente{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block content %}
+<div class="card wide">
+  <h1>Demande de compte enseignant envoyée</h1>
+  <p>Bonjour {{ user.first_name|default:user.username }}, votre compte est créé. L'administration doit confirmer que vous
+    êtes enseignant avant que vous puissiez créer des classes et des examens.</p>
+  <p class="muted">Vous n'avez rien d'autre à faire : reconnectez-vous plus tard, ou rechargez cette page. Dès la
+    validation, vous arriverez directement dans votre espace enseignant.</p>
+  <div class="actions">
+    <a class="btn" href="{% url 'home' %}">Vérifier à nouveau</a>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost" type="submit">Se déconnecter</button></form>
+  </div>
+</div>
+{% endblock %}

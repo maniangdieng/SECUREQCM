@@ -23,7 +23,9 @@ def generate_class_code():
 
 class Profile(models.Model):
     LEVEL_CHOICES = [("L1", "Licence 1"), ("L2", "Licence 2"), ("L3", "Licence 3"), ("M1", "Master 1"), ("M2", "Master 2"), ("DOCTORAT", "Doctorat"), ("AUTRE", "Autre")]
-    ROLE_CHOICES = [("ADMIN", "Administrateur"), ("TEACHER", "Enseignant"), ("STUDENT", "Étudiant")]
+    # PENDING : inscrit comme enseignant, en attente de validation par l'administration (aucun droit d'enseignant).
+    ROLE_CHOICES = [("ADMIN", "Administrateur"), ("TEACHER", "Enseignant"), ("STUDENT", "Étudiant"),
+                    ("PENDING", "Enseignant en attente")]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=12, choices=ROLE_CHOICES, default="STUDENT")
     student_number = models.CharField(max_length=40, blank=True)

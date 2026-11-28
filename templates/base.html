@@ -22,7 +22,7 @@
   <div class="topbar-actions">
     {% if app_role == "STUDENT" %}
       <button class="icon-btn" type="button" data-dialog="dlg-join" title="Rejoindre une classe" aria-label="Rejoindre une classe">{% include "qcm/_icon.html" with name="plus" %}</button>
-    {% else %}
+    {% elif app_role != "PENDING" %}
       <button class="icon-btn" type="button" data-dialog="dlg-create-class" title="Créer une classe" aria-label="Créer une classe">{% include "qcm/_icon.html" with name="plus" %}</button>
     {% endif %}
     <details class="account">
@@ -31,7 +31,7 @@
         <span class="avatar lg">{% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}</span>
         <strong>{{ user.get_full_name|default:user.username }}</strong>
         <span class="muted small">{{ user.username }}</span>
-        <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Administrateur{% elif app_role == "TEACHER" %}Enseignant{% else %}Étudiant{% endif %}</span>
+        <span class="role-pill">{% if is_superadmin %}Super-admin{% elif app_role == "ADMIN" %}Administrateur{% elif app_role == "TEACHER" %}Enseignant{% elif app_role == "PENDING" %}Enseignant (en attente){% else %}Étudiant{% endif %}</span>
         <a class="btn ghost" href="{% url 'profile' %}">{% include "qcm/_icon.html" with name="people" %} Mon profil</a>
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn ghost" type="submit">{% include "qcm/_icon.html" with name="logout" %} Se déconnecter</button></form>
       </div>
@@ -56,7 +56,7 @@
     {% for c in nav_enrolled %}
     <a href="{% url 'classroom_detail' c.id %}" class="nav-item nav-class {% if classroom.id == c.id or exam.classroom_id == c.id %}active{% endif %}" title="{{ c.name }}"><span class="class-dot bg-{{ c.color }}">{{ c.name|first|upper }}</span><span><span class="nav-class-name">{{ c.name }}</span>{% if c.section %}<span class="nav-class-sub">{{ c.section }}</span>{% endif %}</span></a>
     {% endfor %}
-  {% else %}
+  {% elif app_role != "PENDING" %}
     <div class="nav-heading">{% include "qcm/_icon.html" with name="school" %}<span>Enseignement</span></div>
     <a href="{% url 'teacher_todo' %}" class="nav-item {% if path == '/teacher/to-review/' %}active{% endif %}" title="À examiner">{% include "qcm/_icon.html" with name="review" %}<span>À examiner</span></a>
     {% for c in nav_teaching %}
@@ -65,7 +65,7 @@
   {% endif %}
   <hr>
   <a href="{% url 'archived_classrooms' %}" class="nav-item {% if path == '/classes/archived/' %}active{% endif %}" title="Classes archivées">{% include "qcm/_icon.html" with name="archive" %}<span>Classes archivées</span></a>
-  {% if app_role != "STUDENT" %}
+  {% if app_role == "TEACHER" or app_role == "ADMIN" %}
   <a href="{% url 'import_qcm' %}" class="nav-item {% if '/import-qcm' in path %}active{% endif %}" title="Importer un QCM">{% include "qcm/_icon.html" with name="upload" %}<span>Importer un QCM</span></a>
   {% endif %}
 </nav>
