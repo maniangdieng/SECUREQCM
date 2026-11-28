@@ -21,6 +21,8 @@ from .teacher import (teacher_dashboard, teacher_todo, create_exam, update_exam_
                       import_exam_students, update_exam_settings, update_exam_window, duplicate_exam,
                       close_exam, archive_exam, add_exam_student)
 from .imports import import_qcm, import_qcm_preview  # noqa: F401
+from .question_editor import (api_save_question, api_duplicate_question, api_delete_question,  # noqa: F401
+                              api_reorder_questions)
 from .student import student_dashboard, student_todo, student_exam, join_exam_by_code  # noqa: F401
 from .attempts import (start_exam, take_exam, submit_answer_api, save_answer, security_event,  # noqa: F401
                        authorize_resume, advance, close_attempt, finished_score_context)

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ exam.title }}{% endblock %}
 {% block body_class %}theme-{{ exam.classroom.color|default:'teal' }}{% endblock %}
 {% block crumb %}{% if exam.classroom %}{% include "qcm/_class_crumb.html" with classroom=exam.classroom %}{% endif %}{% endblock %}
@@ -122,62 +123,19 @@
   </aside>
 
   <section>
-    {% if not exam.published and not has_attempts %}
-    <div class="card">
-      <h2>Ajouter une question</h2>
-      <form method="post" action="{% url 'add_question' exam.id %}">
-        {% csrf_token %}
-        <label>Énoncé<textarea name="text" required rows="3"></textarea></label>
-        <div class="row">
-          <label class="grow">Type
-            <select name="kind"><option value="SINGLE">Réponse unique</option><option value="MULTIPLE">Réponses multiples</option></select>
-          </label>
-          <label style="width:140px">Points<input name="points" type="number" min="0.1" max="100" step="0.1" value="1"></label>
-        </div>
-        <fieldset>
-          <legend>Propositions — cochez la ou les bonnes réponses</legend>
-          {% for i in option_slots %}
-          <div class="row" style="align-items:center;margin-bottom:8px">
-            <input type="checkbox" name="correct" value="{{ i }}" aria-label="Proposition {{ forloop.counter }} correcte" style="width:18px;height:18px">
-            <input class="grow" name="option_text" placeholder="Proposition {{ forloop.counter }}{% if forloop.counter > 2 %} (facultative){% endif %}" {% if forloop.counter <= 2 %}required{% endif %}>
-          </div>
-          {% endfor %}
-        </fieldset>
-        <button class="btn" type="submit">Ajouter la question</button>
-      </form>
-    </div>
+    {% if editable %}
+    <div class="qe" id="questionEditor" hidden
+         data-save-url="{% url 'api_save_question' exam.id %}"
+         data-order-url="{% url 'api_reorder_questions' exam.id %}"
+         data-duplicate-url="{% url 'api_duplicate_question' exam.id 0 %}"
+         data-delete-url="{% url 'api_delete_question' exam.id 0 %}"
+         data-max-options="{{ max_options }}">{% csrf_token %}</div>
+    {{ editor_questions|json_script:"qeData" }}
+    <div class="qe-fallback">{% include "qcm/_questions_classic.html" %}</div>
+    {% else %}
+    {% include "qcm/_questions_classic.html" %}
     {% endif %}
-
-    <div class="card">
-      <div class="card-title"><h2>Questions ({{ questions|length }})</h2></div>
-      {% for q in questions %}
-      <div class="list-item" style="align-items:flex-start">
-        <div style="flex:1;min-width:0">
-          <strong>{{ forloop.counter }}. {{ q.text|linebreaksbr }}</strong>
-          <div class="meta">{{ q.points }} point{{ q.points|pluralize }} · {{ q.get_question_type_display }}</div>
-          <ul class="answer-list">
-            {% for o in q.options.all %}<li class="{% if o.is_correct %}correct{% endif %}">{% if o.is_correct %}✓ {% endif %}{{ o.text }}</li>{% endfor %}
-          </ul>
-        </div>
-        {% if not exam.published and not has_attempts %}
-        <div class="actions" style="margin-left:12px">
-          <a class="btn ghost sm" href="{% url 'edit_question' exam.id q.id %}">Modifier</a>
-          <form method="post" action="{% url 'move_question' exam.id q.id %}">
-            {% csrf_token %}<input type="hidden" name="direction" value="up">
-            <button class="btn ghost sm" type="submit" aria-label="Monter la question" {% if forloop.first %}disabled{% endif %}>↑</button>
-          </form>
-          <form method="post" action="{% url 'move_question' exam.id q.id %}">
-            {% csrf_token %}<input type="hidden" name="direction" value="down">
-            <button class="btn ghost sm" type="submit" aria-label="Descendre la question" {% if forloop.last %}disabled{% endif %}>↓</button>
-          </form>
-          <form method="post" action="{% url 'delete_question' exam.id q.id %}" data-confirm="Supprimer cette question ?">
-            {% csrf_token %}<button class="btn danger-ghost sm" type="submit">Supprimer</button>
-          </form>
-        </div>
-        {% endif %}
-      </div>
-      {% empty %}<p class="muted mb-0">Aucune question. Ajoutez-en ci-dessus ou importez un sujet.</p>{% endfor %}
-    </div>
   </section>
 </div>
 {% endblock %}
+{% block scripts %}{% if editable %}<script src="{% static 'js/question_editor.js' %}"></script>{% endif %}{% endblock %}

@@ -112,8 +112,10 @@ Cocher et dater au fur et à mesure.
   « interrompue » alors qu'une plus ancienne est encore en cours, ou deux reprises simultanées de deux copies du même
   étudiant.
 - N'apparaissent pas au journal des opérations : la création d'un examen (import compris), le changement de durée, de
-  notation ou d'ordre, l'ajout, le déplacement et la suppression d'une question, la création et la modification d'une
-  classe, les modifications faites dans `/admin/` et la commande `import_qcm`.
+  notation ou d'ordre, la création et la modification d'une classe, les modifications faites dans `/admin/` et la
+  commande `import_qcm`. L'ajout, la modification, la duplication, le déplacement et la suppression d'une question
+  sont journalisés ; les modifications enregistrées automatiquement par l'éditeur comptent pour une ligne par question
+  et par période de 10 minutes.
 - Le conteneur de l'application s'exécute en administrateur (`root`).
 
 ## 6. Avant un examen réel
