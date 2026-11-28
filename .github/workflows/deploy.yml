@@ -1,0 +1,76 @@
+name: Déploiement AWS
+
+# Chaque push sur main est mis en service sur le serveur EC2, une fois la CI réussie.
+# Accès AWS par OIDC (aucune clé stockée) ; le rôle ne peut que lancer une commande sur ce serveur.
+# Variables du dépôt : AWS_REGION, AWS_INSTANCE_ID, AWS_DEPLOY_ROLE_ARN (voir docs/DEPLOIEMENT_AWS.md).
+# DEPLOY_PAUSE=1 suspend les déploiements automatiques (pendant un examen) ; le lancement manuel reste possible.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Mise en service
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.DEPLOY_PAUSE != '1' &&
+       github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    # Pas d'« environment » : il changerait l'identité OIDC attendue par le rôle AWS (branche main).
+    runs-on: ubuntu-latest
+    steps:
+      # Une ancienne CI relancée, ou qui finit après une plus récente, ne doit pas remettre une ancienne version.
+      # Seulement au premier essai : relancer ce workflow à la main reste le moyen de revenir en arrière.
+      - name: Vérifier que le commit est toujours la tête de main
+        id: head
+        if: github.event_name == 'workflow_run' && github.run_attempt == 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          head=$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)
+          if [ "$head" != "$SHA" ]; then
+            echo "::notice::$SHA n'est plus la tête de main ($head) : pas de déploiement."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.head.outputs.skip != '1'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Déployer la version sur le serveur
+        if: steps.head.outputs.skip != '1'
+        env:
+          INSTANCE: ${{ vars.AWS_INSTANCE_ID }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Commit invalide : $SHA"; exit 1; }
+          cmd="cd /opt/secureqcm && git fetch --quiet origin main && git checkout --quiet --force $SHA && bash deploy/aws/deploy.sh"
+          id=$(aws ssm send-command --instance-ids "$INSTANCE" --document-name AWS-RunShellScript \
+               --comment "Secure QCM ${SHA:0:7}" --timeout-seconds 1200 \
+               --parameters "commands=[\"$cmd\"],executionTimeout=[\"1200\"]" \
+               --query Command.CommandId --output text)
+          echo "Commande SSM : $id"
+          for _ in $(seq 1 130); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE" \
+                     --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Statut : $status"
+          [ "$status" = Success ]
