@@ -14,15 +14,19 @@ deploy/sauvegarde.sh /var/backups/secureqcm
 
 # 3. Migrations dans un conteneur à part : si l'une échoue, on s'arrête ici et l'ancienne version reste en ligne.
 #    (Sous PostgreSQL, une migration qui échoue est annulée.)
-if ! docker compose run --rm --no-deps web python manage.py migrate --noinput; then
-  echo "Migration en échec : l'ancienne version reste en service. Sauvegarde dans /var/backups/secureqcm." >&2
+#    Sortie gardée sur le serveur : une erreur de migration peut citer des données (« Key (email)=… »)
+#    et les journaux GitHub Actions de ce dépôt sont publics.
+journal=/var/log/secureqcm-migration.log
+if ! (umask 077; docker compose run --rm --no-deps web python manage.py migrate --noinput > "$journal" 2>&1); then
+  echo "Migration en échec : l'ancienne version reste en service. Détail sur le serveur : $journal." \
+       "Sauvegarde dans /var/backups/secureqcm." >&2
   exit 1
 fi
 
 # 4. Bascule : seul le conteneur web est recréé (quelques secondes). Caddy relit sa configuration sans coupure.
 docker compose up -d --no-build --remove-orphans
-docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
-  || docker compose restart caddy
+# Pas de « restart » en repli : avec un Caddyfile invalide il couperait le site ; le reload échoue sans rien changer.
+docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 docker image prune -f >/dev/null
 
 # Attendre que l'application réponde (migrations comprises), sinon échec visible dans GitHub Actions.

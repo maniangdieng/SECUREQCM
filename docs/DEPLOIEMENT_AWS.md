@@ -41,10 +41,15 @@ push sur main ─► CI (lint, tests) ─► « Déploiement AWS » (GitHub Acti
 - **Déployer** : fusionner dans `main`. Suivi dans l'onglet **Actions → Déploiement AWS**. Relancer à la main :
   **Run workflow** sur ce même workflow. Seul le commit en tête de `main` est mis en service automatiquement.
 - **Pendant un examen** : créer la variable du dépôt `DEPLOY_PAUSE=1` (**Settings → Secrets and variables → Actions →
-  Variables**) pour suspendre les déploiements automatiques, la remettre à `0` après.
+  Variables**) pour suspendre les déploiements automatiques, la remettre à `0` après. Les fusions faites pendant la
+  pause ne sont mises en ligne qu'à la fusion suivante : lancer **Run workflow** pour les déployer tout de suite.
 - **Ce que fait un déploiement** : construction de l'image (le site tourne encore), sauvegarde de la base, migrations
   dans un conteneur à part (en cas d'échec, l'ancienne version reste en ligne), puis bascule du conteneur web
   (quelques secondes d'indisponibilité) et rechargement de Caddy.
+- **Migration en échec** : le site reste sur l'ancienne version ; le détail est dans
+  `/var/log/secureqcm-migration.log` sur le serveur (jamais dans les journaux GitHub, publics). Les migrations passées
+  avant celle qui a échoué restent appliquées : si l'une retire une colonne encore utilisée par l'ancienne version,
+  restaurer la sauvegarde faite juste avant (voir [SAUVEGARDE.md](SAUVEGARDE.md)).
 - **Erreurs des tâches planifiées** : `journalctl -t secureqcm-cloture -t secureqcm-sauvegarde`.
 - **Journaux** : Session Manager, puis `cd /opt/secureqcm && sudo docker compose logs --tail 100 web`.
 - **Revenir à une version** : relancer le workflow d'un commit précédent, ou sur le serveur
