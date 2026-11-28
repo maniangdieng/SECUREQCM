@@ -15,21 +15,26 @@
 | Journal de sécurité | changements d'onglet, sorties du plein écran, pertes de focus, redimensionnements, reprises autorisées (auteur et motif), date | étudiants |
 | Journal des opérations | auteur, action, objet concerné, détail, date | administrateurs, enseignants, personnes citées |
 | Session | identifiant de connexion ; aperçu temporaire d'un sujet importé | toutes |
+| Journal des connexions | identifiant saisi, **adresse IP**, navigateur, page appelée, date ; heure de déconnexion pour les connexions réussies | toute personne qui se connecte ou essaie |
 
-Hors de la base : les fichiers **exportés** (résultats), les **sauvegardes** et, après fusion de la PR #31, les
-e-mails de réinitialisation confiés au serveur d'e-mail.
+Hors de la base : les fichiers **exportés** (résultats), les **sauvegardes** et les e-mails de réinitialisation du mot
+de passe confiés au serveur d'e-mail.
 
-L'application dépose deux cookies techniques (`sessionid`, `csrftoken`). Elle n'enregistre pas elle-même d'adresse IP,
-n'utilise ni caméra, ni micro, ni outil de mesure d'audience, et ne conserve pas les fichiers de sujets importés.
-Le serveur, le proxy ou l'hébergeur peuvent tenir leurs propres journaux : les vérifier.
+Le journal des connexions sert à bloquer les essais de mot de passe répétés (`django-axes`). Pour les échecs, il garde
+aussi les champs envoyés, mot de passe masqué.
+
+L'application dépose deux cookies techniques (`sessionid`, `csrftoken`). Elle n'utilise ni caméra, ni micro, ni outil
+de mesure d'audience, et ne conserve pas les fichiers de sujets importés. Le serveur, le proxy ou l'hébergeur peuvent
+tenir leurs propres journaux : les vérifier.
 
 ## 2. Qui voit quoi
 
 | Qui | Accès |
 |---|---|
-| Étudiant | son compte, ses examens et ses scores ; le nom des enseignants de ses classes et le nombre d'étudiants (pas leurs noms) |
-| Enseignant | les membres de ses classes ; les copies, notes et journaux de sécurité de ses examens |
+| Étudiant | son compte et ses examens ; ses notes une fois publiées ; le nom (à défaut l'identifiant) des enseignants **et des autres étudiants** de ses classes, sans leur matricule ni leur niveau |
+| Enseignant | les membres de ses classes, avec matricule et niveau ; les copies, notes et journaux de sécurité de ses examens |
 | Administration | tous les comptes, classes, examens, copies et le journal des opérations |
+| Super-administrateur | en plus, le journal des connexions (section Axes de `/admin/`) |
 | Personne ayant accès au serveur ou aux sauvegardes | tout |
 
 ## 3. Durées de conservation (à fixer par l'établissement)
@@ -42,6 +47,8 @@ Le serveur, le proxy ou l'hébergeur peuvent tenir leurs propres journaux : les 
 | Copies, réponses, journal de sécurité | `[durée, au moins le délai de réclamation]` | archiver l'examen puis **Supprimer définitivement** |
 | Journal des opérations | `[durée]` | aucune fonction dans l'application : intervention sur la base |
 | Sessions expirées | `[fréquence]` | `python manage.py clearsessions` à planifier |
+| Connexions réussies | `[durée]` | `python manage.py axes_reset_logs --age <jours>` à planifier |
+| Échecs de connexion | `[durée]` | effacés par l'application après une connexion réussie, ou après le délai de blocage (15 minutes par défaut) à l'échec suivant ; tout effacer : `python manage.py axes_reset` |
 | Exports de résultats | `[durée]` | par les personnes qui les ont téléchargés |
 | Sauvegardes | `[durée]` | suppression manuelle ou tâche planifiée |
 | Journaux du serveur | `[durée]` | réglage du serveur |
@@ -55,8 +62,9 @@ matricule), à documenter.
 ## 4. Mesures de protection en place
 
 Mots de passe hachés (Django) ; contrôle d'accès par rôle et par examen ; jetons CSRF ; en production,
-[HTTPS](HTTPS.md) et cookies réservés au HTTPS ; déconnexion après inactivité (8 h par défaut) ; journal des
-opérations ; [sauvegardes](SAUVEGARDE.md) lisibles par leur seul auteur.
+[HTTPS](HTTPS.md) et cookies réservés au HTTPS ; déconnexion après inactivité (8 h par défaut) ; blocage temporaire
+après plusieurs échecs de connexion ; journal des opérations ; [sauvegardes](SAUVEGARDE.md) lisibles par leur seul
+auteur.
 
 À la charge de l'établissement : accès au serveur, chiffrement des disques et des copies de sauvegarde, protection des
 exports, comptes d'administration nominatifs. Les limites de sécurité de l'application sont décrites dans le
@@ -89,8 +97,10 @@ Points à examiner avec un juriste :
 > - **Finalités** : organiser des évaluations en ligne, noter, détecter des comportements contraires aux règles de
 >   l'examen, traiter les réclamations.
 > - **Données** : identité, identifiant, matricule, niveau, e-mail, classes, réponses, notes, journal des événements
->   survenus pendant l'examen (changement d'onglet, sortie du plein écran, perte de focus, redimensionnement).
-> - **Destinataires** : vos enseignants, l'administration, `[autres : hébergeur, jury…]`.
+>   survenus pendant l'examen (changement d'onglet, sortie du plein écran, perte de focus, redimensionnement) ;
+>   à chaque connexion ou essai de connexion, adresse IP, navigateur et date.
+> - **Destinataires** : vos enseignants, l'administration, `[autres : hébergeur, jury…]`. Les autres étudiants de vos
+>   classes voient votre nom.
 > - **Réponses obligatoires** : identité, matricule, niveau et identifiant sont nécessaires pour créer le compte et
 >   passer un examen. L'e-mail est facultatif.
 > - **Conservation** : `[durées]`.
