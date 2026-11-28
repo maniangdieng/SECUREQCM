@@ -269,9 +269,12 @@
   const pageCount = document.getElementById("qeCount");
   const isPending = (q) => q.status === "invalid" && !(q.id === null && isEmpty(q));
   // Ce qui n'est pas (encore) en base : bloque la publication et avertit avant de quitter la page.
+  // Écran et base peut-être différents sans moyen de le savoir ici (duplication à la réponse perdue) : seul un
+  // rechargement le dit. Ce message ne disparaît pas avec celui de la carte.
+  let mustReload = "";
   function unsaved() {
     return questions.filter((q) => q.saving || q.timer || q.retry || q.status === "error" || q.status === "dirty"
-      || isPending(q)).length + (orderBusy || orderError ? 1 : 0);
+      || isPending(q)).length + (orderBusy || orderError ? 1 : 0) + (mustReload ? 1 : 0);
   }
 
   function refreshHeader() {
@@ -284,6 +287,7 @@
     const pending = questions.filter(isPending).length;
     status.className = "qe-status";
     if (saving) status.textContent = "Enregistrement…";
+    else if (mustReload) { status.textContent = `Publication bloquée : ${mustReload}`; status.classList.add("is-error"); }
     else if (failed) { status.textContent = "Des modifications n'ont pas pu être enregistrées."; status.classList.add("is-error"); }
     else if (orderError) { status.textContent = `Ordre des questions non enregistré : ${orderError}`; status.classList.add("is-error"); }
     else if (pending) { status.textContent = `${pending} question${pending > 1 ? "s" : ""} à compléter, non enregistrée${pending > 1 ? "s" : ""}.`; status.classList.add("is-warn"); }
@@ -394,9 +398,10 @@
       await syncOrder();
     } catch (e) {
       q.status = "error"; q.error = e.message;
+      if (e.network && !q.id) q.sent = body;  // création peut-être enregistrée malgré la réponse perdue
       if (e.network && questions.includes(q)) {
         q.retry = setTimeout(() => { q.retry = null; save(q); }, RETRY_MS[Math.min(q.attempt++, RETRY_MS.length - 1)]);
-      }
+      } else if (e.network && !q.id) await dropUnconfirmed(q);  // supprimée pendant cet envoi
     } finally {
       q.saving = false;
       paintMessage(q);
@@ -453,6 +458,19 @@
     renderAll();
     // Pas encore en base : si sa création est en cours, save() la supprimera dès qu'elle aura un identifiant.
     if (q.id) await dropDeleted(q);
+    else if (q.sent && !q.saving) await dropUnconfirmed(q);
+  }
+
+  // Création envoyée sans réponse : la renvoyer (même `client`) donne l'identifiant à supprimer.
+  async function dropUnconfirmed(q) {
+    try { q.id = (await post(root.dataset.saveUrl, q.sent)).question.id; }
+    catch (e) {
+      questions.splice(Math.min(q.removedAt, questions.length), 0, q);
+      q.status = "error"; q.error = `Suppression non effectuée : ${oneShot(e, "supprimez-la de nouveau pour réessayer")}`;
+      renderAll(); refreshHeader();
+      return;
+    }
+    await dropDeleted(q);
   }
 
   async function dropDeleted(q) {
@@ -482,6 +500,8 @@
         q.status = "error";
         q.error = e.network ? "Duplication incertaine (serveur injoignable) : rechargez la page pour vérifier avant de réessayer."
           : `Duplication non effectuée : ${e.message}`;
+        // La copie est peut-être en base sans être à l'écran : publication bloquée jusqu'au rechargement.
+        if (e.network) mustReload = "une duplication est peut-être enregistrée sans apparaître ici. Rechargez la page.";
         paintMessage(q); refreshHeader(); return;
       }
     } else {
@@ -551,7 +571,8 @@
     if (!unsaved()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    status.textContent = "Publication impossible : des questions ne sont pas encore enregistrées. "
+    status.textContent = mustReload ? `Publication impossible : ${mustReload}`
+      : "Publication impossible : des questions ne sont pas encore enregistrées. "
       + "Complétez ou corrigez les questions signalées, attendez « Toutes les modifications sont enregistrées », puis publiez.";
     status.className = "qe-status is-error";
     (list.querySelector(".qe-card.has-problem, .qe-msg.is-warn") || root).scrollIntoView({ block: "center", behavior: "smooth" });
