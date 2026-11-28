@@ -52,7 +52,8 @@ class UnifiedLoginView(LoginView):
 
 def home(request):
     if not request.user.is_authenticated:
-        return redirect("login")
+        # Page d'accueil publique : ce que voit une personne qui reçoit le lien de l'application.
+        return render(request, "public/home.html")
     return redirect(DASHBOARD_BY_ROLE.get(role(request.user), "student_dashboard"))
 
 

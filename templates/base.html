@@ -4,8 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Secure QCM{% endblock %} · Secure QCM</title>
+  <meta name="description" content="Examens QCM en ligne, surveillés : classes avec code, plein écran, chrono et correction automatique.">
+  <meta name="theme-color" content="#035132">
+  <link rel="preload" href="{% static 'fonts/lexend-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f6b5c'/><text x='16' y='21' font-size='13' font-family='Arial' font-weight='700' fill='white' text-anchor='middle'>QCM</text></svg>">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  {# Aperçu quand le lien est partagé (WhatsApp, e-mail, réseaux) #}
+  <meta property="og:site_name" content="Secure QCM">
+  <meta property="og:title" content="Secure QCM : examens QCM en ligne, surveillés">
+  <meta property="og:description" content="Classes avec code, examen en plein écran avec chrono, correction automatique.">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/og-image.png' %}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:type" content="website">
   <script>/* Menu replié : appliqué avant l'affichage pour éviter un saut de mise en page. */
     try { if (localStorage.getItem("sq-drawer") === "rail") document.documentElement.classList.add("drawer-rail"); } catch (e) {}</script>
 </head>
@@ -16,8 +28,14 @@
   {% if user.is_authenticated %}
   <button class="icon-btn" type="button" id="drawerToggle" aria-label="Menu principal" aria-controls="drawer">{% include "qcm/_icon.html" with name="menu" %}</button>
   {% endif %}
-  <a class="brand" href="{% url 'home' %}"><span class="brand-mark">SQ</span><span class="brand-name">Secure QCM</span></a>
+  <a class="brand" href="{% url 'home' %}" aria-label="Secure QCM, accueil">{% include "_brand.html" %}</a>
   {% block crumb %}{% endblock %}
+  {% if not user.is_authenticated %}
+  <nav class="topbar-actions" aria-label="Compte">
+    {% if request.resolver_match.url_name != "login" %}<a class="btn text" href="{% url 'login' %}">Se connecter</a>{% endif %}
+    {% if request.resolver_match.url_name != "student_register" %}<a class="btn" href="{% url 'student_register' %}">Créer un compte</a>{% endif %}
+  </nav>
+  {% endif %}
   {% if user.is_authenticated %}
   <div class="topbar-actions">
     {% if app_role == "STUDENT" %}

@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Créer un compte{% endblock %}
 {% block main_class %}auth{% endblock %}
 {% block content %}
 <div class="card wide">
-  <h1>Créer un compte</h1>
+  <div class="center auth-head">
+    <img class="auth-logo" src="{% static 'img/logo-secure-qcm.webp' %}" alt="Secure QCM" width="900" height="417">
+    <h1>Créer un compte</h1>
+  </div>
   <form method="post" id="registerForm">
     {% csrf_token %}
     <fieldset class="account-type">
