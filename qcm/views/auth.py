@@ -11,9 +11,10 @@ from django.urls import reverse
 
 from ..models import Profile
 from ..permissions import role
-from ..services import enroll_student_in_level_exams
+from ..services import audit, enroll_student_in_level_exams
 
-DASHBOARD_BY_ROLE = {"ADMIN": "admin_dashboard", "TEACHER": "teacher_dashboard", "STUDENT": "student_dashboard"}
+DASHBOARD_BY_ROLE = {"ADMIN": "admin_dashboard", "TEACHER": "teacher_dashboard", "STUDENT": "student_dashboard",
+                     "PENDING": "teacher_pending"}
 
 
 class EmailForm(forms.ModelForm):
@@ -57,8 +58,11 @@ def home(request):
 def student_register(request):
     if request.user.is_authenticated:
         return redirect("home")
-    form_data = {}
+    form_data = {"account_type": "TEACHER" if request.GET.get("type") == "teacher" else "STUDENT"}
     if request.method == "POST":
+        # Comme Google Classroom : on choisit « Étudiant » ou « Enseignant » à l'inscription.
+        # Un enseignant attend la validation de l'administration avant de créer des classes.
+        is_teacher = request.POST.get("account_type") == "TEACHER"
         first_name = request.POST.get("first_name", "").strip()
         last_name = request.POST.get("last_name", "").strip()
         email = request.POST.get("email", "").strip()
@@ -67,16 +71,20 @@ def student_register(request):
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
         password2 = request.POST.get("password2", "")
-        form_data = {"first_name": first_name, "last_name": last_name, "email": email,
-                     "student_number": student_number, "study_level": study_level, "username": username}
+        if is_teacher:
+            student_number = study_level = ""
+        form_data = {"first_name": first_name, "last_name": last_name, "email": email, "username": username,
+                     "student_number": student_number, "study_level": study_level,
+                     "account_type": "TEACHER" if is_teacher else "STUDENT"}
         errors = []
-        if not all([first_name, last_name, student_number, study_level, username, password]):
+        required = [first_name, last_name, username, password] + ([email] if is_teacher else [student_number, study_level])
+        if not all(required):
             errors.append("Tous les champs obligatoires doivent être remplis.")
-        if study_level not in dict(Profile.LEVEL_CHOICES):
+        if not is_teacher and study_level not in dict(Profile.LEVEL_CHOICES):
             errors.append("Sélectionnez un niveau d'études valide.")
         if User.objects.filter(username__iexact=username).exists():
             errors.append("Cet identifiant est déjà utilisé.")
-        if Profile.objects.filter(student_number=student_number).exclude(student_number="").exists():
+        if student_number and Profile.objects.filter(student_number=student_number).exists():
             errors.append("Ce matricule est déjà associé à un compte.")
         if password != password2:
             errors.append("Les deux mots de passe ne correspondent pas.")
@@ -91,17 +99,28 @@ def student_register(request):
             user = User.objects.create_user(username=username, password=password, email=email,
                                             first_name=first_name, last_name=last_name)
             profile = user.profile
-            profile.role = "STUDENT"
+            profile.role = "PENDING" if is_teacher else "STUDENT"
             profile.student_number = student_number
             profile.study_level = study_level
             profile.save()
-            # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
-            enroll_student_in_level_exams(user)
             # Plusieurs backends sont configurés (django-axes) : préciser lequel a authentifié.
             login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+            if is_teacher:
+                audit(user, "Demande de compte enseignant", user)
+                return redirect("teacher_pending")
+            # Les examens publiés pour ce niveau apparaissent automatiquement au nouvel étudiant.
+            enroll_student_in_level_exams(user)
             messages.success(request, "Votre compte étudiant a été créé. Rejoignez maintenant vos classes avec le code donné par votre enseignant.")
             return redirect("student_dashboard")
     return render(request, "registration/register.html", {"levels": Profile.LEVEL_CHOICES, "form_data": form_data})
+
+
+@login_required
+def teacher_pending(request):
+    """Page d'attente d'un enseignant inscrit, tant que l'administration n'a pas validé sa demande."""
+    if role(request.user) != "PENDING":
+        return redirect("home")
+    return render(request, "registration/teacher_pending.html")
 
 
 @login_required

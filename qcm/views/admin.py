@@ -36,6 +36,7 @@ def admin_dashboard(request):
         "stats": {
             "users": User.objects.count(),
             "teachers": Profile.objects.filter(role="TEACHER").count(),
+            "pending": Profile.objects.filter(role="PENDING", user__is_active=True).count(),
             "students": Profile.objects.filter(role="STUDENT").count(),
             "classrooms": Classroom.objects.filter(is_archived=False).count(),
             "exams": Exam.objects.filter(is_archived=False).count(),
@@ -60,13 +61,39 @@ def admin_users(request):
     if query:
         users = users.filter(Q(username__icontains=query) | Q(first_name__icontains=query) | Q(last_name__icontains=query)
                              | Q(email__icontains=query) | Q(profile__student_number__icontains=query))
-    if role_filter in ("ADMIN", "TEACHER", "STUDENT"):
+    if role_filter in dict(Profile.ROLE_CHOICES):
         users = users.filter(profile__role=role_filter)
     page = Paginator(users, 30).get_page(request.GET.get("page"))
     return render(request, "qcm/admin_users.html", {
         "page": page, "query": query, "role_filter": role_filter,
         "roles": Profile.ROLE_CHOICES, "levels": Profile.LEVEL_CHOICES,
+        "pending": (User.objects.filter(profile__role="PENDING", is_active=True).order_by("date_joined")),
     })
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def admin_teacher_request(request, user_id):
+    """Valide ou refuse une demande de compte enseignant faite à l'inscription."""
+    if not is_admin(request.user):
+        return HttpResponseForbidden()
+    target = get_object_or_404(User.objects.select_related("profile"), pk=user_id, profile__role="PENDING")
+    profile = target.profile
+    if request.POST.get("decision") == "approve":
+        profile.role = "TEACHER"
+        profile.save(update_fields=["role"])
+        audit(request.user, "Demande enseignant acceptée", target)
+        messages.success(request, f"{target.get_full_name() or target.username} est maintenant enseignant.")
+    else:
+        # Refus : le compte est désactivé (il n'a ni matricule ni niveau pour servir de compte étudiant).
+        profile.role = "STUDENT"
+        profile.save(update_fields=["role"])
+        target.is_active = False
+        target.save(update_fields=["is_active"])
+        audit(request.user, "Demande enseignant refusée", target, "compte désactivé")
+        messages.success(request, f"Demande de {target.username} refusée : le compte est désactivé.")
+    return redirect_back(request, "admin_users")
 
 
 @login_required
@@ -74,7 +101,8 @@ def admin_users(request):
 def admin_create_user(request):
     if not is_admin(request.user):
         return HttpResponseForbidden("Accès réservé à l'administration.")
-    form = AccountForm(request.POST or None, creator=request.user)
+    initial = {"role": "TEACHER"} if request.GET.get("role") == "TEACHER" else None
+    form = AccountForm(request.POST or None, creator=request.user, initial=initial)
     if form.is_valid():
         user = form.save()
         if user.profile.role == "STUDENT":
@@ -108,7 +136,7 @@ def admin_set_role(request, user_id):
         return HttpResponseForbidden()
     target = get_object_or_404(User.objects.select_related("profile"), pk=user_id)
     new_role = request.POST.get("role", "")
-    if new_role not in dict(Profile.ROLE_CHOICES):
+    if new_role not in dict(Profile.ROLE_CHOICES) or new_role == "PENDING":
         messages.error(request, "Rôle invalide.")
     elif target.pk == request.user.pk:
         messages.error(request, "Vous ne pouvez pas modifier votre propre rôle.")

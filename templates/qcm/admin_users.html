@@ -3,9 +3,36 @@
 {% block content %}
 <div class="breadcrumb"><a href="{% url 'admin_dashboard' %}">Administration</a> › Comptes</div>
 <div class="page-head">
-  <div><h1>Comptes utilisateurs</h1><p>Attribuez le rôle enseignant aux comptes concernés. {% if not is_superadmin %}Seul le super-administrateur peut nommer un administrateur.{% endif %}</p></div>
-  <a class="btn" href="{% url 'admin_create_user' %}">Créer un compte</a>
+  <div><h1>Comptes utilisateurs</h1><p>Validez les demandes des enseignants, créez des comptes ou changez un rôle. {% if not is_superadmin %}Seul le super-administrateur peut nommer un administrateur.{% endif %}</p></div>
+  <div class="actions">
+    <a class="btn" href="{% url 'admin_create_user' %}?role=TEACHER">Créer un compte enseignant</a>
+    <a class="btn ghost" href="{% url 'admin_create_user' %}">Autre compte</a>
+  </div>
 </div>
+
+{% if pending %}
+<div class="card" id="demandes" style="margin-bottom:18px">
+  <h2>Demandes de compte enseignant <span class="badge warning">{{ pending|length }}</span></h2>
+  <p class="muted small">Ces personnes se sont inscrites comme enseignants. Vérifiez leur identité avant de valider : un enseignant crée des classes et voit les résultats de ses étudiants.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Demandeur</th><th>E-mail</th><th>Inscrit le</th><th></th></tr></thead>
+    <tbody>
+    {% for u in pending %}
+    <tr>
+      <td><div class="person"><span class="avatar">{{ u.first_name|first|upper }}{{ u.last_name|first|upper }}</span>
+        <div><strong>{{ u.get_full_name|default:u.username }}</strong><div class="muted small">{{ u.username }}</div></div></div></td>
+      <td class="small">{{ u.email|default:"—" }}</td>
+      <td class="small">{{ u.date_joined|date:"d/m/Y H:i" }}</td>
+      <td><div class="actions" style="flex-wrap:nowrap">
+        <form method="post" action="{% url 'admin_teacher_request' u.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="decision" value="approve"><button class="btn sm" type="submit">Valider</button></form>
+        <form method="post" action="{% url 'admin_teacher_request' u.id %}" data-confirm="Refuser la demande de {{ u.get_full_name|default:u.username }} ? Le compte sera désactivé.">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="decision" value="reject"><button class="btn danger-ghost sm" type="submit">Refuser</button></form>
+      </div></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
 
 <form method="get" class="card flat row" style="margin-bottom:18px">
   <label class="grow mb-0">Rechercher<input name="q" value="{{ query }}" placeholder="Nom, identifiant, e-mail, matricule…"></label>
@@ -27,12 +54,12 @@
       <td class="small">{{ u.profile.get_study_level_display|default:"—" }}</td>
       <td>
         {% if u.is_superuser %}<span class="badge info">Super-admin</span>
-        {% elif u == user %}<span class="badge">{{ u.profile.get_role_display }}</span>
+        {% elif u == user or u.profile.role == "PENDING" %}<span class="badge{% if u.profile.role == "PENDING" %} warning{% endif %}">{{ u.profile.get_role_display }}</span>
         {% else %}
         <form method="post" action="{% url 'admin_set_role' u.id %}" class="row" style="gap:6px;flex-wrap:nowrap">
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
           <select name="role" style="width:150px;padding:6px 8px">
-            {% for value, label in roles %}{% if value != "ADMIN" or is_superadmin or u.profile.role == "ADMIN" %}<option value="{{ value }}" {% if u.profile.role == value %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}
+            {% for value, label in roles %}{% if value != "PENDING" %}{% if value != "ADMIN" or is_superadmin or u.profile.role == "ADMIN" %}<option value="{{ value }}" {% if u.profile.role == value %}selected{% endif %}>{{ label }}</option>{% endif %}{% endif %}{% endfor %}
           </select>
           <button class="btn ghost sm" type="submit">OK</button>
         </form>

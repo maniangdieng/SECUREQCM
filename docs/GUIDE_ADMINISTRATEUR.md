@@ -11,6 +11,13 @@ Installation : [README](../README.md), [HTTPS](HTTPS.md), [sauvegarde](SAUVEGARD
 
 Après connexion, le menu latéral propose **Administration**, **Comptes** et **Journal**.
 
+## Demandes de compte enseignant
+
+Une personne qui s'inscrit comme **Enseignant** n'a aucun droit tant que sa demande n'est pas validée. Les demandes
+s'affichent en haut de **Comptes** (et sur le tableau de bord). **Valider** en fait un enseignant ; **Refuser**
+désactive le compte. Vérifier l'identité de la personne avant de valider : un enseignant voit les résultats de ses
+étudiants. Les deux décisions sont inscrites au journal.
+
 ## Créer un compte
 
 **Comptes → Créer un compte** : identifiant, prénom, nom, e-mail, mot de passe (8 caractères au moins, ni trop

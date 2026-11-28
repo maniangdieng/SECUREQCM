@@ -1,17 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Créer un compte étudiant{% endblock %}
+{% block title %}Créer un compte{% endblock %}
 {% block main_class %}auth{% endblock %}
 {% block content %}
 <div class="card wide">
-  <h1>Créer un compte étudiant</h1>
-  <p class="muted">Utilisez les informations de votre carte étudiante. Après la création du compte, rejoignez vos classes avec le code donné par votre enseignant.</p>
-  <form method="post">
+  <h1>Créer un compte</h1>
+  <form method="post" id="registerForm">
     {% csrf_token %}
+    <fieldset class="account-type">
+      <legend>Je suis</legend>
+      <label class="choice-card"><input type="radio" name="account_type" value="STUDENT" {% if form_data.account_type != "TEACHER" %}checked{% endif %}>
+        <span><strong>Étudiant</strong><span class="muted small">Je rejoins des classes avec un code et je passe des examens.</span></span></label>
+      <label class="choice-card"><input type="radio" name="account_type" value="TEACHER" {% if form_data.account_type == "TEACHER" %}checked{% endif %}>
+        <span><strong>Enseignant</strong><span class="muted small">Je crée des classes et des examens. Validation par l'administration.</span></span></label>
+    </fieldset>
+    <p class="muted" data-for="STUDENT">Utilisez les informations de votre carte étudiante. Après la création du compte, rejoignez vos classes avec le code donné par votre enseignant.</p>
+    <p class="muted" data-for="TEACHER">Votre compte est créé tout de suite ; l'administration confirme ensuite que vous êtes enseignant. Vous pourrez alors créer vos classes.</p>
     <div class="row">
       <label class="grow">Prénom<input name="first_name" required value="{{ form_data.first_name }}" autocomplete="given-name"></label>
       <label class="grow">Nom<input name="last_name" required value="{{ form_data.last_name }}" autocomplete="family-name"></label>
     </div>
-    <div class="row">
+    <div class="row" data-for="STUDENT">
       <label class="grow">Matricule<input name="student_number" required value="{{ form_data.student_number }}"></label>
       <label class="grow">Niveau d'études
         <select name="study_level" required>
@@ -20,7 +28,7 @@
         </select>
       </label>
     </div>
-    <label>E-mail <span class="muted">(facultatif)</span><input type="email" name="email" value="{{ form_data.email }}" autocomplete="email"></label>
+    <label>E-mail <span class="muted" data-for="STUDENT">(facultatif)</span><span class="muted" data-for="TEACHER">(professionnel, pour vous contacter)</span><input type="email" name="email" value="{{ form_data.email }}" autocomplete="email"></label>
     <label>Identifiant de connexion<input name="username" required value="{{ form_data.username }}" autocomplete="username"></label>
     <div class="row">
       <label class="grow">Mot de passe<input type="password" name="password" required autocomplete="new-password"><span class="help">8 caractères minimum, pas trop courant.</span></label>
@@ -31,4 +39,23 @@
   <hr>
   <p class="center muted mb-0">Déjà inscrit ? <a href="{% url 'login' %}">Se connecter</a></p>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  // Affiche les champs du type de compte choisi ; les champs masqués ne sont ni obligatoires ni envoyés.
+  const form = document.getElementById("registerForm");
+  function update() {
+    const type = form.querySelector("input[name=account_type]:checked").value;
+    form.querySelectorAll("[data-for]").forEach(function (el) {
+      const on = el.dataset.for === type;
+      el.hidden = !on;
+      el.querySelectorAll("input, select").forEach(function (f) { f.disabled = !on; });
+    });
+    form.querySelector("input[name=email]").required = type === "TEACHER";
+  }
+  form.addEventListener("change", function (e) { if (e.target.name === "account_type") update(); });
+  update();
+})();
+</script>
 {% endblock %}

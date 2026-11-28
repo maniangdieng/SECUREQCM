@@ -18,7 +18,8 @@ class AccountForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         self.fields["first_name"].required = self.fields["last_name"].required = True
         # Seul le super-administrateur peut nommer un administrateur.
-        self.fields["role"].choices = [c for c in Profile.ROLE_CHOICES if c[0] != "ADMIN" or creator.is_superuser]
+        self.fields["role"].choices = [c for c in Profile.ROLE_CHOICES
+                                       if c[0] != "PENDING" and (c[0] != "ADMIN" or creator.is_superuser)]
 
     def clean(self):
         data = super().clean()

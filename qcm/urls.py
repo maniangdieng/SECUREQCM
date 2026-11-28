@@ -7,6 +7,7 @@ urlpatterns = [
 
     # Comptes
     path("accounts/register/", views.student_register, name="student_register"),
+    path("accounts/pending/", views.teacher_pending, name="teacher_pending"),
     path("accounts/profile/", views.profile, name="profile"),
 
     # Administration
@@ -16,6 +17,7 @@ urlpatterns = [
     path("dashboard/admin/journal/", views.admin_journal, name="admin_journal"),
     path("dashboard/admin/users/<int:user_id>/role/", views.admin_set_role, name="admin_set_role"),
     path("dashboard/admin/users/<int:user_id>/toggle-active/", views.admin_toggle_active, name="admin_toggle_active"),
+    path("dashboard/admin/users/<int:user_id>/teacher-request/", views.admin_teacher_request, name="admin_teacher_request"),
     path("dashboard/admin/exams/<int:exam_id>/archive/", views.archive_exam, name="admin_archive_exam"),
     path("dashboard/admin/exams/<int:exam_id>/delete/", views.admin_normal_delete_exam, name="admin_normal_delete_exam"),
     path("dashboard/admin/exams/<int:exam_id>/delete-permanently/", views.admin_delete_exam, name="admin_delete_exam"),
